@@ -347,7 +347,9 @@ implementation
 
 uses
 	SysUtils, StrUtils, Math,
+	{$IFDEF LAZARUS}
 	lazlogger,
+	{$ENDIF}
     {$IFDEF WINDOWS}
     Windows, ShellAPI,
 	{$ELSE}
@@ -358,33 +360,23 @@ uses
 
 
 procedure LogDebug(const Msg: AnsiString);
+var
+	OutputMsg: AnsiString;
 begin
 	if Length(Msg) <= 1 then Exit;
 
-	{$IFDEF UNIX}
-		if Copy(Msg, 1, 1) = '$' then
-		begin
-		    {$IFDEF DEBUG}
-			DebugLn(Copy(Msg, 3, MaxInt));
-			{$ENDIF}
-			Writeln(Copy(Msg, 3, MaxInt));
-		end
-		else
-			Writeln(Msg);
-    {$ELSE}
-	    {$IFDEF DEBUG}
-		if Copy(Msg, 1, 1) = '$' then
-		begin
-			DebugLn(Copy(Msg, 3, MaxInt));
-			Writeln(Copy(Msg, 3, MaxInt));
-		end
-		else
-		begin
-			DebugLn(Msg);
-			Writeln(Msg);
-		end;
+	if Copy(Msg, 1, 1) = '$' then
+		OutputMsg := Copy(Msg, 3, MaxInt)
+	else
+		OutputMsg := Msg;
+
+	{$IFDEF LAZARUS}
+		{$IFDEF DEBUG}
+		DebugLn(OutputMsg);
 		{$ENDIF}
 	{$ENDIF}
+	
+	Writeln(OutputMsg);
 end;
 
 procedure LogIfDebug(const Msg: AnsiString);
@@ -673,7 +665,9 @@ var
 
 initialization
 
+	{$IFDEF LAZARUS}
 	DebugLogger.LogName := 'debug.txt';
+	{$ENDIF}
 
 	for i := 0 to 99 do
 		TextVals[i] := Format('%.2d', [i]);

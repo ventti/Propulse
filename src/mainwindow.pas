@@ -114,7 +114,8 @@ implementation
 
 uses
 	{$IFDEF WINDOWS}Windows,{$ENDIF}
-	FileUtil, BuildInfo, Math,
+	{$IFDEF LAZARUS}FileUtil,{$ENDIF}
+	BuildInfo, Math,
 	{$IFDEF BASS}BASS,{$ENDIF}
 	{$IFDEF SOXR}soxr,{$ENDIF}
 	ProTracker.Messaging, ProTracker.Import,
@@ -1460,7 +1461,11 @@ begin
 
 	// Init application directories
 	//
+	{$IFDEF LAZARUS}
 	AppPath := IncludeTrailingPathDelimiter(ProgramDirectory);
+	{$ELSE}
+	AppPath := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0)));
+	{$ENDIF}
 	DataPath := AppPath + 'data/';
 	ConfigPath := GetAppConfigDir(False);
 	if ConfigPath = '' then ConfigPath := DataPath;
