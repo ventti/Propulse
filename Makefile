@@ -51,15 +51,15 @@ ifeq ($(TARGET),macos-arm64)
   LIB_DIR = lib/macos-arm64
   LIB_PATHS = -k-L$(LIB_DIR) -k-L/opt/homebrew/lib
   POST_BUILD =
-else ifeq ($(TARGET),macos-x86)
-  TARGET_CPU = i386
-  TARGET_OS = darwin
-  BINARY_EXT =
-  UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/i386-darwin
-  PLATFORM_DEFINES = -dCPUI386 -dTARGET_X86 -dUSENATIVECODE
-  LIB_DIR = lib/macos-x86
-  LIB_PATHS = -k-L$(LIB_DIR) -k-L/usr/local/lib
-  POST_BUILD =
+#else ifeq ($(TARGET),macos-x86)
+#  TARGET_CPU = i386
+#  TARGET_OS = darwin
+#  BINARY_EXT =
+#  UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/i386-darwin
+#  PLATFORM_DEFINES = -dCPUI386 -dTARGET_X86 -dUSENATIVECODE
+#  LIB_DIR = lib/macos-x86
+#  LIB_PATHS = -k-L$(LIB_DIR) -k-L/usr/local/lib
+#  POST_BUILD =
 else ifeq ($(TARGET),windows-x64)
   TARGET_CPU = x86_64
   TARGET_OS = win64
@@ -69,24 +69,24 @@ else ifeq ($(TARGET),windows-x64)
   LIB_DIR = lib/windows-x64
   LIB_PATHS = -k-L$(LIB_DIR)
   POST_BUILD =
-else ifeq ($(TARGET),linux-x64)
-  TARGET_CPU = x86_64
-  TARGET_OS = linux
-  BINARY_EXT =
-  UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/x86_64-linux
-  PLATFORM_DEFINES = -dCPUX86_64 -dTARGET_X64 -dLINUX
-  LIB_DIR = lib/linux-x64
-  LIB_PATHS = -k-L$(LIB_DIR) -k-L/usr/lib -k-L/usr/local/lib
-  POST_BUILD =
-else ifeq ($(TARGET),linux-arm64)
-  TARGET_CPU = aarch64
-  TARGET_OS = linux
-  BINARY_EXT =
-  UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/aarch64-linux
-  PLATFORM_DEFINES = -dCPUAARCH64 -dTARGET_ARM64 -dLINUX
-  LIB_DIR = lib/linux-arm64
-  LIB_PATHS = -k-L$(LIB_DIR) -k-L/usr/lib -k-L/usr/local/lib
-  POST_BUILD =
+#else ifeq ($(TARGET),linux-x64)
+#  TARGET_CPU = x86_64
+#  TARGET_OS = linux
+#  BINARY_EXT =
+#  UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/x86_64-linux
+#  PLATFORM_DEFINES = -dCPUX86_64 -dTARGET_X64 -dLINUX
+#  LIB_DIR = lib/linux-x64
+#  LIB_PATHS = -k-L$(LIB_DIR) -k-L/usr/lib -k-L/usr/local/lib
+#  POST_BUILD =
+#else ifeq ($(TARGET),linux-arm64)
+#  TARGET_CPU = aarch64
+#  TARGET_OS = linux
+#  BINARY_EXT =
+#  UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/aarch64-linux
+#  PLATFORM_DEFINES = -dCPUAARCH64 -dTARGET_ARM64 -dLINUX
+#  LIB_DIR = lib/linux-arm64
+#  LIB_PATHS = -k-L$(LIB_DIR) -k-L/usr/lib -k-L/usr/local/lib
+#  POST_BUILD =
 else
   $(error Unknown target: $(TARGET). Use 'make help-targets' to see available targets)
 endif
@@ -391,20 +391,20 @@ fix-dylib-paths:
 all-targets:
 	@echo "Building all targets..."
 	@$(MAKE) TARGET=macos-arm64 MODE=release
-	@$(MAKE) TARGET=macos-x86 MODE=release
 	@$(MAKE) TARGET=windows-x64 MODE=release
-	@$(MAKE) TARGET=linux-x64 MODE=release
-	@$(MAKE) TARGET=linux-arm64 MODE=release
+	#@$(MAKE) TARGET=macos-x86 MODE=release
+	#@$(MAKE) TARGET=linux-x64 MODE=release
+	#@$(MAKE) TARGET=linux-arm64 MODE=release
 	@echo "All targets built!"
 
 # Build all targets (debug)
 all-targets-debug:
 	@echo "Building all targets (debug)..."
 	@$(MAKE) TARGET=macos-arm64 MODE=debug
-	@$(MAKE) TARGET=macos-x86 MODE=debug
 	@$(MAKE) TARGET=windows-x64 MODE=debug
-	@$(MAKE) TARGET=linux-x64 MODE=debug
-	@$(MAKE) TARGET=linux-arm64 MODE=debug
+	#@$(MAKE) TARGET=macos-x86 MODE=debug
+	#@$(MAKE) TARGET=linux-x64 MODE=debug
+	#@$(MAKE) TARGET=linux-arm64 MODE=debug
 	@echo "All targets built (debug)!"
 
 # Clean build artifacts for current target
@@ -429,10 +429,10 @@ distclean: clean-all-targets
 clean-all-targets:
 	@echo "Cleaning all targets..."
 	@$(MAKE) TARGET=macos-arm64 clean
-	@$(MAKE) TARGET=macos-x86 clean
 	@$(MAKE) TARGET=windows-x64 clean
-	@$(MAKE) TARGET=linux-x64 clean
-	@$(MAKE) TARGET=linux-arm64 clean
+	#@$(MAKE) TARGET=macos-x86 clean
+	#@$(MAKE) TARGET=linux-x64 clean
+	#@$(MAKE) TARGET=linux-arm64 clean
 	@echo "All targets cleaned."
 
 # Help target
@@ -446,16 +446,16 @@ help:
 	@echo "  make                          # Build for host platform (release)"
 	@echo "  make TARGET=macos-arm64       # Build for macOS ARM64"
 	@echo "  make TARGET=windows-x64 release  # Build for Windows x64"
-	@echo "  make TARGET=linux-x64 debug   # Build debug for Linux x64"
+	@#echo "  make TARGET=linux-x64 debug   # Build debug for Linux x64"
 	@echo "  make all-targets              # Build all targets"
 	@echo "  make all-targets-debug        # Build all targets (debug)"
 	@echo ""
 	@echo "Available targets:"
 	@echo "  macos-arm64    - macOS ARM64 (Apple Silicon)"
-	@echo "  macos-x86      - macOS x86 (Intel)"
 	@echo "  windows-x64    - Windows 64-bit"
-	@echo "  linux-x64      - Linux x86_64"
-	@echo "  linux-arm64    - Linux ARM64"
+	@#echo "  macos-x86      - macOS x86 (Intel)"
+	@#echo "  linux-x64      - Linux x86_64"
+	@#echo "  linux-arm64    - Linux ARM64"
 	@echo ""
 	@echo "Other commands:"
 	@echo "  make clean                    # Clean current target"
@@ -467,7 +467,7 @@ help:
 	@echo "Packaging commands:"
 	@echo "  make package-windows-x64      # Create Windows x64 ZIP package"
 	@echo "  make package-macos-arm64      # Create macOS ARM64 ZIP package"
-	@echo "  make package-macos-x86        # Create macOS x86 ZIP package"
+	@#echo "  make package-macos-x86        # Create macOS x86 ZIP package"
 	@echo "  make package-all-targets      # Package all targets"
 	@echo ""
 	@echo "Requirements:"
@@ -489,10 +489,10 @@ help:
 help-targets:
 	@echo "Available build targets:"
 	@echo "  macos-arm64    - macOS ARM64 (Apple Silicon)"
-	@echo "  macos-x86      - macOS x86 (Intel)"
 	@echo "  windows-x64    - Windows 64-bit"
-	@echo "  linux-x64      - Linux x86_64"
-	@echo "  linux-arm64    - Linux ARM64"
+	@#echo "  macos-x86      - macOS x86 (Intel)"
+	@#echo "  linux-x64      - Linux x86_64"
+	@#echo "  linux-arm64    - Linux ARM64"
 
 # Packaging targets
 # Note: PACKAGE_NAME is set per-target below to avoid variable expansion issues
@@ -599,64 +599,65 @@ package-macos-arm64: $(BIN_DIR)/$(PROJECT_NAME)-macos-arm64
 	rm -rf $$PACKAGE_DIR; \
 	echo "Package created: $$ZIP_FILE"
 
-package-macos-x86: $(BIN_DIR)/$(PROJECT_NAME)-macos-x86
-	@echo "Packaging $(PROJECT_NAME) for macOS x86..."
-	@PACKAGE_DIR="$(BIN_DIR)/package-macos-x86"; \
-	PACKAGE_NAME="$(PROJECT_NAME)-macos-x86"; \
-	if [ ! -f "$(BIN_DIR)/$(PROJECT_NAME)-macos-x86" ]; then \
-		echo "Error: Binary not found. Build it first with: make TARGET=macos-x86 release"; \
-		exit 1; \
-	fi; \
-	rm -rf $$PACKAGE_DIR; \
-	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME; \
-	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME/data; \
-	echo "  Copying binary..."; \
-	cp $(BIN_DIR)/$(PROJECT_NAME)-macos-x86 $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse; \
-	chmod +x $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse; \
-	echo "  Copying dylibs..."; \
-	DYLIBS_MISSING=0; \
-	if [ ! -f "$(BIN_DIR)/libbass.dylib" ]; then \
-		echo "  Warning: libbass.dylib not found in $(BIN_DIR). Download macOS x86 version from https://www.un4seen.com/"; \
-		DYLIBS_MISSING=1; \
-	else \
-		cp $(BIN_DIR)/libbass.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
-		echo "  ✓ libbass.dylib"; \
-	fi; \
-	if [ ! -f "$(BIN_DIR)/libSDL2.dylib" ]; then \
-		echo "  Warning: libSDL2.dylib not found in $(BIN_DIR). Install via: brew install sdl2, then copy from /usr/local/lib/"; \
-		DYLIBS_MISSING=1; \
-	else \
-		cp $(BIN_DIR)/libSDL2.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
-		echo "  ✓ libSDL2.dylib"; \
-	fi; \
-	if [ -f "$(BIN_DIR)/libsoxr.dylib" ]; then \
-		cp $(BIN_DIR)/libsoxr.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
-		echo "  ✓ libsoxr.dylib"; \
-	fi; \
-	if [ $$DYLIBS_MISSING -eq 1 ]; then \
-		echo "  Note: Package will be created but may be incomplete without dylibs."; \
-	fi; \
-	echo "  Fixing dylib paths..."; \
-	BINARY_PATH="$$PACKAGE_DIR/$$PACKAGE_NAME/Propulse"; \
-	$(MAKE) fix-dylib-paths BINARY="$$BINARY_PATH"; \
-	echo "  Copying data files..."; \
-	cp -r data/* $$PACKAGE_DIR/$$PACKAGE_NAME/data/ 2>/dev/null || true; \
-	if [ -f "license.txt" ]; then \
-		cp license.txt $$PACKAGE_DIR/$$PACKAGE_NAME/; \
-	fi; \
-	echo "  Creating ZIP archive..."; \
-	mkdir -p $(BIN_DIR); \
-	ZIP_FILE="$$(cd $(BIN_DIR) && pwd)/$$PACKAGE_NAME.zip"; \
-	cd $$PACKAGE_DIR && zip -q -r "$$ZIP_FILE" $$PACKAGE_NAME 2>&1 || (echo "Error: zip command failed. Is zip installed?" && rm -rf $$PACKAGE_DIR && exit 1); \
-	rm -rf $$PACKAGE_DIR; \
-	echo "Package created: $$ZIP_FILE"
+#package-macos-x86: $(BIN_DIR)/$(PROJECT_NAME)-macos-x86
+#	@echo "Packaging $(PROJECT_NAME) for macOS x86..."
+#	@PACKAGE_DIR="$(BIN_DIR)/package-macos-x86"; \
+#	PACKAGE_NAME="$(PROJECT_NAME)-macos-x86"; \
+#	if [ ! -f "$(BIN_DIR)/$(PROJECT_NAME)-macos-x86" ]; then \
+#		echo "Error: Binary not found. Build it first with: make TARGET=macos-x86 release"; \
+#		exit 1; \
+#	fi; \
+#	rm -rf $$PACKAGE_DIR; \
+#	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME; \
+#	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME/data; \
+#	echo "  Copying binary..."; \
+#	cp $(BIN_DIR)/$(PROJECT_NAME)-macos-x86 $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse; \
+#	chmod +x $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse; \
+#	echo "  Copying dylibs..."; \
+#	DYLIBS_MISSING=0; \
+#	if [ ! -f "$(BIN_DIR)/libbass.dylib" ]; then \
+#		echo "  Warning: libbass.dylib not found in $(BIN_DIR). Download macOS x86 version from https://www.un4seen.com/"; \
+#		DYLIBS_MISSING=1; \
+#	else \
+#		cp $(BIN_DIR)/libbass.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+#		echo "  ✓ libbass.dylib"; \
+#	fi; \
+#	if [ ! -f "$(BIN_DIR)/libSDL2.dylib" ]; then \
+#		echo "  Warning: libSDL2.dylib not found in $(BIN_DIR). Install via: brew install sdl2, then copy from /usr/local/lib/"; \
+#		DYLIBS_MISSING=1; \
+#	else \
+#		cp $(BIN_DIR)/libSDL2.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+#		echo "  ✓ libSDL2.dylib"; \
+#	fi; \
+#	if [ -f "$(BIN_DIR)/libsoxr.dylib" ]; then \
+#		cp $(BIN_DIR)/libsoxr.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+#		echo "  ✓ libsoxr.dylib"; \
+#	fi; \
+#	if [ $$DYLIBS_MISSING -eq 1 ]; then \
+#		echo "  Note: Package will be created but may be incomplete without dylibs."; \
+#	fi; \
+#	echo "  Fixing dylib paths..."; \
+#	BINARY_PATH="$$PACKAGE_DIR/$$PACKAGE_NAME/Propulse"; \
+#	$(MAKE) fix-dylib-paths BINARY="$$BINARY_PATH"; \
+#	echo "  Copying data files..."; \
+#	cp -r data/* $$PACKAGE_DIR/$$PACKAGE_NAME/data/ 2>/dev/null || true; \
+#	if [ -f "license.txt" ]; then \
+#		cp license.txt $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+#	fi; \
+#	echo "  Creating ZIP archive..."; \
+#	mkdir -p $(BIN_DIR); \
+#	ZIP_FILE="$$(cd $(BIN_DIR) && pwd)/$$PACKAGE_NAME.zip"; \
+#	cd $$PACKAGE_DIR && zip -q -r "$$ZIP_FILE" $$PACKAGE_NAME 2>&1 || (echo "Error: zip command failed. Is zip installed?" && rm -rf $$PACKAGE_DIR && exit 1); \
+#	rm -rf $$PACKAGE_DIR; \
+#	echo "Package created: $$ZIP_FILE"
 
 # Package all targets
 package-all-targets:
 	@echo "Packaging all targets..."
 	@$(MAKE) package-windows-x64
 	@$(MAKE) package-macos-arm64
-	@$(MAKE) package-macos-x86
+	#@$(MAKE) package-macos-x86
 	@echo "All targets packaged!"
 
-.PHONY: all release debug clean distclean clean-all-targets all-targets all-targets-debug help help-targets fix-dylib-paths package-windows-x64 package-macos-arm64 package-macos-x86 package-all-targets
+.PHONY: all release debug clean distclean clean-all-targets all-targets all-targets-debug help help-targets fix-dylib-paths package-windows-x64 package-macos-arm64 package-all-targets
+#package-macos-x86
