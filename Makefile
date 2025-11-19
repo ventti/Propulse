@@ -47,7 +47,7 @@ ifeq ($(TARGET),macos-arm64)
   TARGET_OS = darwin
   BINARY_EXT =
   UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/aarch64-darwin
-  PLATFORM_DEFINES = -dCPUAARCH64 -dTARGET_ARM64 -dUSENATIVECODE
+  PLATFORM_DEFINES = -dCPUAARCH64 -dTARGET_ARM64 -dUSENATIVECODE -dENABLE_SOXR
   LIB_DIR = lib/macos-arm64
   LIB_PATHS = -k-L$(LIB_DIR) -k-L/opt/homebrew/lib
   POST_BUILD = fix-dylib-paths
@@ -350,7 +350,7 @@ $(OUTPUT_BINARY): $(MAIN_SOURCE) $(RESOURCE_FILE)
 	@mkdir -p $(UNIT_OUTPUT_DIR)
 	@mkdir -p $(BIN_DIR)
 	$(FPC) $(FPC_FLAGS) $(UNIT_PATHS) $(MAIN_SOURCE) -o$(OUTPUT_BINARY) \
-		-k-lSDL2 -k-lbass $(LIB_PATHS)
+		-k-lSDL2 -k-lbass -k-lsoxr $(LIB_PATHS)
 	@echo "Build complete: $(OUTPUT_BINARY)"
 	@if [ -d "$(LIB_DIR)" ]; then \
 		echo "Copying libraries from $(LIB_DIR) to $(BIN_DIR)..."; \
