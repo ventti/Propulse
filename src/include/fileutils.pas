@@ -24,6 +24,7 @@ const
 	function	GetParentDir(const Path: String): String;
 	function 	MoveDirectory(const fromDir, toDir: String): Boolean;
 	function 	CopyFileSHFileOperation(const srcFile, destFile: String): Boolean;
+	function 	CopyFile(const srcFile, destFile: String; Overwrite: Boolean = False): Boolean;
 	function 	IsSameFolder(const OldPath, NewPath: String): Boolean;
 	function 	IsSubFolder(const OldPath, NewPath: String): Boolean;
 	procedure 	FileSearch(const PathName, Extensions: String; var lstFiles: TStringList);
@@ -75,6 +76,38 @@ begin
 	for X := 1 to Length(Filename) do
 		if Pos(Filename[X], IllegalFilenameChars) > 0 then
 			Result[X] := ' ';
+end;
+
+function CopyFile(const srcFile, destFile: String; Overwrite: Boolean = False): Boolean;
+var
+	SourceStream, DestStream: TFileStream;
+	DestDir: String;
+begin
+	Result := False;
+	if not FileExists(srcFile) then Exit;
+	
+	if FileExists(destFile) and not Overwrite then Exit(False);
+	
+	DestDir := ExtractFilePath(destFile);
+	if (DestDir <> '') and not DirectoryExists(DestDir) then
+		ForceDirectories(DestDir);
+	
+	try
+		SourceStream := TFileStream.Create(srcFile, fmOpenRead);
+		try
+			DestStream := TFileStream.Create(destFile, fmCreate);
+			try
+				DestStream.CopyFrom(SourceStream, 0);
+				Result := True;
+			finally
+				DestStream.Free;
+			end;
+		finally
+			SourceStream.Free;
+		end;
+	except
+		Result := False;
+	end;
 end;
 
 function CopyFileSHFileOperation(const srcFile, destFile: String): Boolean;
