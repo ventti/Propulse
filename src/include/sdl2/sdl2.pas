@@ -139,12 +139,14 @@ interface
   {$ENDIF}
 
   {$IF DEFINED(UNIX) AND NOT DEFINED(ANDROID)}
+    {$IFDEF DARWIN}
     uses
-      {$IFDEF DARWIN}
-      CocoaAll,
-      {$ENDIF}
+      CocoaAll;
+    {$ELSE}
+    uses
       X,
       XLib;
+    {$ENDIF}
   {$ENDIF}
 
 const
