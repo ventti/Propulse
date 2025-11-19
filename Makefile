@@ -50,7 +50,7 @@ ifeq ($(TARGET),macos-arm64)
   PLATFORM_DEFINES = -dCPUAARCH64 -dTARGET_ARM64 -dUSENATIVECODE
   LIB_DIR = lib/macos-arm64
   LIB_PATHS = -k-L$(LIB_DIR) -k-L/opt/homebrew/lib
-  POST_BUILD =
+  POST_BUILD = fix-dylib-paths
 #else ifeq ($(TARGET),macos-x86)
 #  TARGET_CPU = i386
 #  TARGET_OS = darwin
@@ -357,8 +357,9 @@ $(OUTPUT_BINARY): $(MAIN_SOURCE) $(RESOURCE_FILE)
 		cp $(LIB_DIR)/* $(BIN_DIR)/ 2>/dev/null || true; \
 	fi
 
-# Fix dylib paths (macOS only) - manual target, not run automatically
-# Usage: make fix-dylib-paths BINARY=<path-to-binary>
+# Fix dylib paths (macOS only)
+# Automatically called for macOS builds via POST_BUILD
+# Can also be called manually: make fix-dylib-paths BINARY=<path-to-binary>
 fix-dylib-paths:
 	@if [ -z "$(BINARY)" ]; then \
 		echo "Error: BINARY variable not set"; \
