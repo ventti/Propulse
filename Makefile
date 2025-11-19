@@ -58,14 +58,6 @@ else ifeq ($(TARGET),macos-x86)
   PLATFORM_DEFINES = -dCPUI386 -dTARGET_X86 -dUSENATIVECODE
   LIB_PATHS = -k-L$(OUTPUT_DIR) -k-L/usr/local/lib
   POST_BUILD =
-else ifeq ($(TARGET),windows-x86)
-  TARGET_CPU = i386
-  TARGET_OS = win32
-  BINARY_EXT = .exe
-  UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/i386-win32
-  PLATFORM_DEFINES = -dCPUI386 -dTARGET_X86 -dWINDOWS
-  LIB_PATHS = -k-L$(OUTPUT_DIR)
-  POST_BUILD =
 else ifeq ($(TARGET),windows-x64)
   TARGET_CPU = x86_64
   TARGET_OS = win64
@@ -90,14 +82,6 @@ else ifeq ($(TARGET),linux-arm64)
   PLATFORM_DEFINES = -dCPUAARCH64 -dTARGET_ARM64 -dLINUX
   LIB_PATHS = -k-L$(OUTPUT_DIR) -k-L/usr/lib -k-L/usr/local/lib
   POST_BUILD =
-else ifeq ($(TARGET),linux-x86)
-  TARGET_CPU = i386
-  TARGET_OS = linux
-  BINARY_EXT =
-  UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/i386-linux
-  PLATFORM_DEFINES = -dCPUI386 -dTARGET_X86 -dLINUX
-  LIB_PATHS = -k-L$(OUTPUT_DIR) -k-L/usr/lib -k-L/usr/local/lib
-  POST_BUILD =
 else
   $(error Unknown target: $(TARGET). Use 'make help-targets' to see available targets)
 endif
@@ -105,11 +89,7 @@ endif
 # Detect if we're cross-compiling
 IS_CROSS_COMPILE = 0
 USE_CROSS_COMPILER = 0
-ifeq ($(TARGET_OS),win32)
-  ifneq ($(HOST_OS),windows)
-    IS_CROSS_COMPILE = 1
-  endif
-else ifeq ($(TARGET_OS),win64)
+ifeq ($(TARGET_OS),win64)
   ifneq ($(HOST_OS),windows)
     IS_CROSS_COMPILE = 1
   endif
@@ -196,28 +176,6 @@ Note: If you installed via fpcupdeluxe, ensure the installation completed succes
         WIN64_RTL_UNIT_PATH := $(WIN64_RTL_PATH)
       endif
     endif
-  else ifeq ($(TARGET_OS),win32)
-    ifeq ($(TARGET_CPU),i386)
-      # For Windows x86, prefer ppcross386 (Windows-specific), fall back to fpc with -Twin32
-      CROSS_COMPILER := $(shell which ppcross386 2>/dev/null | head -1)
-      ifneq ($(CROSS_COMPILER),)
-        FPC = $(CROSS_COMPILER)
-        USE_CROSS_COMPILER = 1
-      else
-        # Fall back to fpc with explicit target flags (requires Windows RTL units)
-        # Check if Windows RTL units are available
-        FPC_VERSION := $(shell fpc -iV 2>/dev/null)
-        WIN32_RTL_PATH := $(shell find /usr/local/lib/fpc/$(FPC_VERSION)/units -type d -name "i386-win32" 2>/dev/null | head -1)
-        ifeq ($(WIN32_RTL_PATH),)
-          $(error Windows x86 RTL units not found. To cross-compile for Windows x86, you need either: \
-1. Install ppcross386 (Windows x86 cross-compiler) which includes Windows RTL units, or \
-2. Install Windows RTL units separately. \
-You can install cross-compilers using fpcupdeluxe: https://github.com/newpascal/fpcupdeluxe/releases)
-        endif
-        FPC = fpc
-        USE_CROSS_COMPILER = 0
-      endif
-    endif
   else ifeq ($(TARGET_OS),linux)
     ifeq ($(TARGET_CPU),x86_64)
       # For Linux x64, check if we're on macOS and need ppcrossx64, or use native compiler
@@ -236,15 +194,6 @@ You can install cross-compilers using fpcupdeluxe: https://github.com/newpascal/
       endif
     else ifeq ($(TARGET_CPU),aarch64)
       CROSS_COMPILER := $(shell which ppcrossa64 2>/dev/null | head -1)
-      ifneq ($(CROSS_COMPILER),)
-        FPC = $(CROSS_COMPILER)
-        USE_CROSS_COMPILER = 1
-      else
-        FPC = fpc
-        USE_CROSS_COMPILER = 0
-      endif
-    else ifeq ($(TARGET_CPU),i386)
-      CROSS_COMPILER := $(shell which ppcross386 2>/dev/null | head -1)
       ifneq ($(CROSS_COMPILER),)
         FPC = $(CROSS_COMPILER)
         USE_CROSS_COMPILER = 1
@@ -431,7 +380,6 @@ all-targets:
 	@echo "Building all targets..."
 	@$(MAKE) TARGET=macos-arm64 MODE=release
 	@$(MAKE) TARGET=macos-x86 MODE=release
-	@$(MAKE) TARGET=windows-x86 MODE=release
 	@$(MAKE) TARGET=windows-x64 MODE=release
 	@$(MAKE) TARGET=linux-x64 MODE=release
 	@$(MAKE) TARGET=linux-arm64 MODE=release
@@ -442,7 +390,6 @@ all-targets-debug:
 	@echo "Building all targets (debug)..."
 	@$(MAKE) TARGET=macos-arm64 MODE=debug
 	@$(MAKE) TARGET=macos-x86 MODE=debug
-	@$(MAKE) TARGET=windows-x86 MODE=debug
 	@$(MAKE) TARGET=windows-x64 MODE=debug
 	@$(MAKE) TARGET=linux-x64 MODE=debug
 	@$(MAKE) TARGET=linux-arm64 MODE=debug
@@ -471,7 +418,6 @@ clean-all-targets:
 	@echo "Cleaning all targets..."
 	@$(MAKE) TARGET=macos-arm64 clean
 	@$(MAKE) TARGET=macos-x86 clean
-	@$(MAKE) TARGET=windows-x86 clean
 	@$(MAKE) TARGET=windows-x64 clean
 	@$(MAKE) TARGET=linux-x64 clean
 	@$(MAKE) TARGET=linux-arm64 clean
@@ -495,11 +441,9 @@ help:
 	@echo "Available targets:"
 	@echo "  macos-arm64    - macOS ARM64 (Apple Silicon)"
 	@echo "  macos-x86      - macOS x86 (Intel)"
-	@echo "  windows-x86    - Windows 32-bit"
 	@echo "  windows-x64    - Windows 64-bit"
 	@echo "  linux-x64      - Linux x86_64"
 	@echo "  linux-arm64    - Linux ARM64"
-	@echo "  linux-x86      - Linux x86 (32-bit)"
 	@echo ""
 	@echo "Other commands:"
 	@echo "  make clean                    # Clean current target"
@@ -510,7 +454,6 @@ help:
 	@echo ""
 	@echo "Packaging commands:"
 	@echo "  make package-windows-x64      # Create Windows x64 ZIP package"
-	@echo "  make package-windows-x86      # Create Windows x86 ZIP package"
 	@echo "  make package-macos-arm64      # Create macOS ARM64 ZIP package"
 	@echo "  make package-macos-x86        # Create macOS x86 ZIP package"
 	@echo ""
@@ -522,8 +465,8 @@ help:
 	@echo ""
 	@echo "Cross-compilation notes:"
 	@echo "  - FPC supports cross-compilation using -P and -T flags"
-	@echo "  - For Windows targets, you may need ppcross386/ppcrossx64"
-	@echo "  - For Linux targets, you may need ppcross386/ppcrossx64/ppcrossa64"
+	@echo "  - For Windows targets, you may need ppcrossx64"
+	@echo "  - For Linux targets, you may need ppcrossx64/ppcrossa64"
 	@echo "  - Cross-compilers can be installed via fpcupdeluxe or manually"
 	@echo ""
 	@echo "Current host: $(HOST_OS)-$(HOST_ARCH)"
@@ -534,11 +477,9 @@ help-targets:
 	@echo "Available build targets:"
 	@echo "  macos-arm64    - macOS ARM64 (Apple Silicon)"
 	@echo "  macos-x86      - macOS x86 (Intel)"
-	@echo "  windows-x86    - Windows 32-bit"
 	@echo "  windows-x64    - Windows 64-bit"
 	@echo "  linux-x64      - Linux x86_64"
 	@echo "  linux-arm64    - Linux ARM64"
-	@echo "  linux-x86      - Linux x86 (32-bit)"
 
 # Packaging targets
 # Note: PACKAGE_NAME is set per-target below to avoid variable expansion issues
@@ -568,50 +509,6 @@ package-windows-x64: $(OUTPUT_DIR)/$(PROJECT_NAME)-windows-x64.exe
 	fi; \
 	if [ ! -f "SDL2.dll" ]; then \
 		echo "  Warning: SDL2.dll not found. Download Windows x64 version from https://www.libsdl.org/"; \
-		DLLS_MISSING=1; \
-	else \
-		cp SDL2.dll $$PACKAGE_DIR/$$PACKAGE_NAME/; \
-		echo "  ✓ SDL2.dll"; \
-	fi; \
-	if [ $$DLLS_MISSING -eq 1 ]; then \
-		echo "  Note: Package will be created but may be incomplete without DLLs."; \
-	fi; \
-	echo "  Copying data files..."; \
-	cp -r data/* $$PACKAGE_DIR/$$PACKAGE_NAME/data/ 2>/dev/null || true; \
-	if [ -f "license.txt" ]; then \
-		cp license.txt $$PACKAGE_DIR/$$PACKAGE_NAME/; \
-	fi; \
-	echo "  Creating ZIP archive..."; \
-	mkdir -p $(BIN_DIR); \
-	ZIP_FILE="$$(cd $(BIN_DIR) && pwd)/$$PACKAGE_NAME.zip"; \
-	cd $$PACKAGE_DIR && zip -q -r "$$ZIP_FILE" $$PACKAGE_NAME 2>&1 || (echo "Error: zip command failed. Is zip installed?" && rm -rf $$PACKAGE_DIR && exit 1); \
-	rm -rf $$PACKAGE_DIR; \
-	echo "Package created: $$ZIP_FILE"
-
-package-windows-x86: $(OUTPUT_DIR)/$(PROJECT_NAME)-windows-x86.exe
-	@echo "Packaging $(PROJECT_NAME) for Windows x86..."
-	@PACKAGE_DIR="$(BIN_DIR)/package-windows-x86"; \
-	PACKAGE_NAME="$(PROJECT_NAME)-windows-x86"; \
-	if [ ! -f "$(OUTPUT_DIR)/$(PROJECT_NAME)-windows-x86.exe" ]; then \
-		echo "Error: Binary not found. Build it first with: make TARGET=windows-x86 release"; \
-		exit 1; \
-	fi; \
-	rm -rf $$PACKAGE_DIR; \
-	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME; \
-	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME/data; \
-	echo "  Copying binary..."; \
-	cp $(OUTPUT_DIR)/$(PROJECT_NAME)-windows-x86.exe $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse.exe; \
-	echo "  Copying DLLs..."; \
-	DLLS_MISSING=0; \
-	if [ ! -f "bass.dll" ]; then \
-		echo "  Warning: bass.dll not found. Download Windows x86 version from https://www.un4seen.com/"; \
-		DLLS_MISSING=1; \
-	else \
-		cp bass.dll $$PACKAGE_DIR/$$PACKAGE_NAME/; \
-		echo "  ✓ bass.dll"; \
-	fi; \
-	if [ ! -f "SDL2.dll" ]; then \
-		echo "  Warning: SDL2.dll not found. Download Windows x86 version from https://www.libsdl.org/"; \
 		DLLS_MISSING=1; \
 	else \
 		cp SDL2.dll $$PACKAGE_DIR/$$PACKAGE_NAME/; \
@@ -743,4 +640,4 @@ package-macos-x86: $(OUTPUT_DIR)/$(PROJECT_NAME)-macos-x86
 	rm -rf $$PACKAGE_DIR; \
 	echo "Package created: $$ZIP_FILE"
 
-.PHONY: all release debug clean distclean clean-all-targets all-targets all-targets-debug help help-targets fix-dylib-paths package-windows-x64 package-windows-x86 package-macos-arm64 package-macos-x86
+.PHONY: all release debug clean distclean clean-all-targets all-targets all-targets-debug help help-targets fix-dylib-paths package-windows-x64 package-macos-arm64 package-macos-x86
