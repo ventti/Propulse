@@ -58,6 +58,20 @@ interface
     {$DEFINE TARGET_x64}
     {$ASMMODE INTEL}
   {$ENDIF}
+  {$IFDEF CPUAARCH64}
+    // target is ARM64 (aarch64) - use native Pascal code
+    {$DEFINE TARGET_ARM64}
+  {$ENDIF}
+  {$IFDEF CPUARM64}
+    // target is ARM64 (alternative define) - use native Pascal code
+    {$DEFINE TARGET_ARM64}
+  {$ENDIF}
+  // Check for aarch64 target explicitly (FPC may use different defines)
+  {$IF DEFINED(CPUAARCH64) OR DEFINED(CPUARM64) OR DEFINED(CPU64) AND NOT DEFINED(CPUX86_64)}
+    {$IFNDEF TARGET_ARM64}
+      {$DEFINE TARGET_ARM64}
+    {$ENDIF}
+  {$ENDIF}
 {$ENDIF}
 {$ELSE}
   // check for XE2 64-Bit compiler define
@@ -78,6 +92,11 @@ interface
 {$ENDIF}
 
 {$IFDEF TARGET_x64}
+  {$DEFINE USENATIVECODE}
+  {$DEFINE USEINLINING}
+  {$DEFINE USEMOVE}
+{$ENDIF}
+{$IFDEF TARGET_ARM64}
   {$DEFINE USENATIVECODE}
   {$DEFINE USEINLINING}
   {$DEFINE USEMOVE}
@@ -172,13 +191,11 @@ begin
    Result := 0
  else
    Result := Value;
+end;
 {$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        // in x64 calling convention parameters are passed in ECX, EDX, R8 & R9
-        MOV     EAX,ECX
-{$ENDIF}
         TEST    EAX,$FFFFFF00
         JNZ     @1
         RET
@@ -186,8 +203,35 @@ asm
         MOV     EAX,$FF
         RET
 @2:     XOR     EAX,EAX
-{$ENDIF}
 end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        // in x64 calling convention parameters are passed in ECX, EDX, R8 & R9
+        MOV     EAX,ECX
+        TEST    EAX,$FFFFFF00
+        JNZ     @1
+        RET
+@1:     JS      @2
+        MOV     EAX,$FF
+        RET
+@2:     XOR     EAX,EAX
+end;
+{$ELSE}
+// Fallback to Pascal code for unsupported architectures (ARM64, etc.)
+begin
+ if Value > 255 then
+   Result := 255
+ else
+ if Value < 0 then
+   Result := 0
+ else
+   Result := Value;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 
 {$IFDEF USENATIVECODE}
 procedure FillLongword(var X; Count: Integer; Value: Longword);
@@ -746,12 +790,29 @@ function SAR_3(Value: Integer): Integer;
 begin
   Result := Value div 8;
 {$ELSE}
+{$IFDEF USENATIVECODE}
+begin
+  Result := Value div 8;
+{$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        MOV       EAX,ECX
-{$ENDIF}
         SAR       EAX,3
+end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        MOV       EAX,ECX
+        SAR       EAX,3
+end;
+{$ELSE}
+begin
+  Result := Value div 8;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 end;
 
@@ -760,12 +821,29 @@ function SAR_4(Value: Integer): Integer;
 begin
   Result := Value div 16;
 {$ELSE}
+{$IFDEF USENATIVECODE}
+begin
+  Result := Value div 16;
+{$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        MOV       EAX,ECX
-{$ENDIF}
         SAR       EAX,4
+end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        MOV       EAX,ECX
+        SAR       EAX,4
+end;
+{$ELSE}
+begin
+  Result := Value div 16;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 end;
 
@@ -774,12 +852,29 @@ function SAR_6(Value: Integer): Integer;
 begin
   Result := Value div 64;
 {$ELSE}
+{$IFDEF USENATIVECODE}
+begin
+  Result := Value div 64;
+{$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        MOV       EAX,ECX
-{$ENDIF}
         SAR       EAX,6
+end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        MOV       EAX,ECX
+        SAR       EAX,6
+end;
+{$ELSE}
+begin
+  Result := Value div 64;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 end;
 
@@ -788,12 +883,29 @@ function SAR_8(Value: Integer): Integer;
 begin
   Result := Value div 256;
 {$ELSE}
+{$IFDEF USENATIVECODE}
+begin
+  Result := Value div 256;
+{$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        MOV       EAX,ECX
-{$ENDIF}
         SAR       EAX,8
+end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        MOV       EAX,ECX
+        SAR       EAX,8
+end;
+{$ELSE}
+begin
+  Result := Value div 256;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 end;
 
@@ -802,12 +914,29 @@ function SAR_9(Value: Integer): Integer;
 begin
   Result := Value div 512;
 {$ELSE}
+{$IFDEF USENATIVECODE}
+begin
+  Result := Value div 512;
+{$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        MOV       EAX,ECX
-{$ENDIF}
         SAR       EAX,9
+end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        MOV       EAX,ECX
+        SAR       EAX,9
+end;
+{$ELSE}
+begin
+  Result := Value div 512;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 end;
 
@@ -816,12 +945,29 @@ function SAR_11(Value: Integer): Integer;
 begin
   Result := Value div 2048;
 {$ELSE}
+{$IFDEF USENATIVECODE}
+begin
+  Result := Value div 2048;
+{$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        MOV       EAX,ECX
-{$ENDIF}
         SAR       EAX,11
+end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        MOV       EAX,ECX
+        SAR       EAX,11
+end;
+{$ELSE}
+begin
+  Result := Value div 2048;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 end;
 
@@ -830,12 +976,29 @@ function SAR_12(Value: Integer): Integer;
 begin
   Result := Value div 4096;
 {$ELSE}
+{$IFDEF USENATIVECODE}
+begin
+  Result := Value div 4096;
+{$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        MOV       EAX,ECX
-{$ENDIF}
         SAR       EAX,12
+end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        MOV       EAX,ECX
+        SAR       EAX,12
+end;
+{$ELSE}
+begin
+  Result := Value div 4096;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 end;
 
@@ -844,12 +1007,29 @@ function SAR_13(Value: Integer): Integer;
 begin
   Result := Value div 8192;
 {$ELSE}
+{$IFDEF USENATIVECODE}
+begin
+  Result := Value div 8192;
+{$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        MOV       EAX,ECX
-{$ENDIF}
         SAR       EAX,13
+end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        MOV       EAX,ECX
+        SAR       EAX,13
+end;
+{$ELSE}
+begin
+  Result := Value div 8192;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 end;
 
@@ -858,12 +1038,29 @@ function SAR_14(Value: Integer): Integer;
 begin
   Result := Value div 16384;
 {$ELSE}
+{$IFDEF USENATIVECODE}
+begin
+  Result := Value div 16384;
+{$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        MOV       EAX,ECX
-{$ENDIF}
         SAR       EAX,14
+end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        MOV       EAX,ECX
+        SAR       EAX,14
+end;
+{$ELSE}
+begin
+  Result := Value div 16384;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 end;
 
@@ -872,12 +1069,29 @@ function SAR_15(Value: Integer): Integer;
 begin
   Result := Value div 32768;
 {$ELSE}
+{$IFDEF USENATIVECODE}
+begin
+  Result := Value div 32768;
+{$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        MOV       EAX,ECX
-{$ENDIF}
         SAR       EAX,15
+end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        MOV       EAX,ECX
+        SAR       EAX,15
+end;
+{$ELSE}
+begin
+  Result := Value div 32768;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 end;
 
@@ -886,12 +1100,29 @@ function SAR_16(Value: Integer): Integer;
 begin
   Result := Value div 65536;
 {$ELSE}
+{$IFDEF USENATIVECODE}
+begin
+  Result := Value div 65536;
+{$ELSE}
+{$IFDEF TARGET_x86}
 {$IFDEF FPC} assembler; nostackframe; {$ENDIF}
 asm
-{$IFDEF TARGET_x64}
-        MOV       EAX,ECX
-{$ENDIF}
         SAR       EAX,16
+end;
+{$ELSE}
+{$IFDEF TARGET_x64}
+{$IFDEF FPC} assembler; nostackframe; {$ENDIF}
+asm
+        MOV       EAX,ECX
+        SAR       EAX,16
+end;
+{$ELSE}
+begin
+  Result := Value div 65536;
+end;
+{$ENDIF}
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 end;
 
