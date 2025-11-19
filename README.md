@@ -30,20 +30,19 @@ Supported formats:
 
 ### macOS (ARM64)
 
+
+
 Quick setup:
 ```bash
+# install FPC using fpcupdeluxe and optional crossbuild tools and rtl files
+./install-fpc-mac.sh
 ./bootstrap-mac.sh
 make TARGET=macos-arm64 release
 ```
 
 ### Cross-compilation for Windows
 
-To build Windows binaries from macOS, you need Windows RTL units:
-
-**Option 1** (console-only, automated): Run `./install-windows-rtl-console.sh`  
-**Option 2** (GUI): Run `./install-windows-rtl-fpcupdeluxe.sh`  
-**Option 3** (build from source): Run `./install-windows-rtl.sh`  
-**Option 4**: See [docs/building.txt](docs/building.txt) for manual instructions
+To build Windows binaries from macOS, you need Windows RTL units. See [docs/building.txt](docs/building.txt) for installation instructions.
 
 Then build with:
 ```bash
