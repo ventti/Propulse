@@ -25,3 +25,29 @@ Supported formats:
 ![Sample Editor screenshot](https://github.com/hukkax/Propulse/blob/trunk/docs/images/ss2.png)
 
 ![Settings screen screenshot](https://github.com/hukkax/Propulse/blob/trunk/docs/images/ss3.png)
+
+## Building
+
+### macOS (ARM64)
+
+Quick setup:
+```bash
+./bootstrap-mac.sh
+make TARGET=macos-arm64 release
+```
+
+### Cross-compilation for Windows
+
+To build Windows binaries from macOS, you need Windows RTL units:
+
+**Option 1** (console-only, automated): Run `./install-windows-rtl-console.sh`  
+**Option 2** (GUI): Run `./install-windows-rtl-fpcupdeluxe.sh`  
+**Option 3** (build from source): Run `./install-windows-rtl.sh`  
+**Option 4**: See [docs/building.txt](docs/building.txt) for manual instructions
+
+Then build with:
+```bash
+make TARGET=windows-x64 release
+```
+
+See [docs/building.txt](docs/building.txt) for detailed build instructions for all platforms and cross-compilation support.

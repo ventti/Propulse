@@ -44,15 +44,88 @@ Building on Linux:
 
 Building on Mac (courtesy of @nilsding):
 
+Quick setup (recommended):
+- Run the bootstrap script: ./bootstrap-mac.sh
+- This will install all required dependencies automatically
+
+Manual setup:
 - Install the Xcode command-line tools
+- Install FreePascal: brew install fpc
 - Install SDL2 from Homebrew: brew install sdl2
-- Copy /usr/local/lib/libSDL2.dylib to the project's root directory (Propulse
-  will not run otherwise)
+- Copy libSDL2.dylib to the project's root directory (from /opt/homebrew/lib
+  on ARM64 or /usr/local/lib on Intel)
 - Download BASS for macOS from http://www.un4seen.com/ and copy libbass.dylib
   into the project's root directory
 - Append this line to your /etc/fpc.cfg if you are running 10.14 (Mojave) or
   newer: -XR/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
-- Follow the above instructions for building on Windows
+- Build using: make TARGET=macos-arm64 release (or make for default target)
+
+-------------------------------------------------------------------------------
+
+Cross-compilation (using Makefile):
+
+The Makefile supports cross-compilation for multiple platforms. You can build
+for different targets from any host platform.
+
+Available targets:
+  macos-arm64    - macOS ARM64 (Apple Silicon)
+  macos-x86      - macOS x86 (Intel)
+  windows-x86    - Windows 32-bit
+  windows-x64    - Windows 64-bit
+  linux-x64      - Linux x86_64
+  linux-arm64    - Linux ARM64
+  linux-x86      - Linux x86 (32-bit)
+
+Usage examples:
+  make TARGET=macos-arm64 release      # Build for macOS ARM64
+  make TARGET=windows-x64 release      # Build for Windows x64
+  make TARGET=linux-x64 release        # Build for Linux x64
+  make TARGET=linux-arm64 release      # Build for Linux ARM64
+  make all-targets                     # Build all targets
+  make help                            # Show help
+
+Cross-compilation requirements:
+
+- FreePascal 3.2+ with cross-compiler support
+- For Windows targets: ppcross386 and/or ppcrossx64 cross-compilers, OR
+  Windows RTL units (if using ppcx64 -Twin64)
+- For Linux targets: ppcross386, ppcrossx64, and/or ppcrossa64 cross-compilers
+- Cross-compilers can be installed using fpcupdeluxe:
+  https://github.com/newpascal/fpcupdeluxe/releases
+
+Installing Windows RTL units (for ppcx64 -Twin64):
+
+Option 1 - Console-only with fpcupdeluxe (recommended, fully automated):
+  1. Run: ./install-windows-rtl-console.sh
+  2. This downloads fpcupdeluxe (if needed) and installs Windows cross-compiler via CLI
+  3. No GUI required - fully automated
+  4. Installs both ppcrossx64 and Windows RTL units
+
+Option 2 - GUI with fpcupdeluxe:
+  1. Run: ./install-windows-rtl-fpcupdeluxe.sh
+     This downloads fpcupdeluxe and guides you through GUI installation
+  2. Or manually download from: https://github.com/newpascal/fpcupdeluxe/releases
+  3. In fpcupdeluxe GUI:
+     - Select "FPC" tab
+     - Check "Cross-compiler" option
+     - Select "Windows x64 (win64-x86_64)"
+     - Click "Install/Update FPC"
+
+Option 3 - Build Windows RTL from source:
+  1. Run: ./install-windows-rtl.sh
+  2. This downloads FPC source (if needed) and builds Windows RTL units
+  3. Requires sudo access for installation
+
+Option 4 - Manual build from FPC source:
+  1. Download FPC source matching your FPC version from freepascal.org
+  2. Extract to a directory (e.g., /usr/local/share/fpcsrc)
+  3. cd to the rtl directory
+  4. Run: make all OS_TARGET=win64 CPU_TARGET=x86_64 FPC=/path/to/ppcx64
+  5. Run: sudo make install OS_TARGET=win64 CPU_TARGET=x86_64
+
+Note: FPC's built-in cross-compilation may work for some targets without
+explicit cross-compiler binaries, but for best results, install the
+appropriate cross-compilers or RTL units.
 
 -------------------------------------------------------------------------------
 hukka 2020-11-23 - hukkax@gmail.com - https://github.com/hukkax/Propulse
