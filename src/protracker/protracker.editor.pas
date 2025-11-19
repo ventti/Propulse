@@ -73,7 +73,8 @@ type
 		keyTransposeSemitoneUp,		keyTransposeSemitoneDown,
 		keyTransposeOctaveUp,		keyTransposeOctaveDown,
 		keyChannelToggle,			keyChannelSolo,
-		keyPatternInsert,			keyPatternDelete
+		keyPatternInsert,			keyPatternDelete,
+		keyUndo,					keyRedo
 	);
 
 	TEditCursor = record
@@ -89,6 +90,34 @@ type
 		Size:       TPoint;
 		//procedure	FromClipboard;
 		//procedure	ToClipboard;
+	end;
+
+	// Undo system types
+	TUndoActionType = (
+		uaSetNote,		// Single note change
+		uaInsertNote,	// Row inserted
+		uaDeleteNote,	// Row deleted
+		uaBlockClear,	// Block cleared
+		uaBlockPaste,	// Block pasted
+		uaTranspose,	// Transpose operation
+		uaBlockSetSample, // Block sample set
+		uaBlockWipeEffects, // Block effects wiped
+		uaBlockSlideEffect, // Block slide effect
+		uaReplaceSample, // Sample replaced in pattern
+		uaInsertPattern, // Pattern inserted
+		uaDeletePattern  // Pattern deleted
+	);
+
+	TUndoChange = record
+		Pattern, Channel, Row: Byte;
+		OldNote, NewNote: TNote;
+	end;
+
+	TUndoEntry = record
+		ActionType: TUndoActionType;
+		Pattern: Byte;
+		Changes: array of TUndoChange;
+		Description: AnsiString;
 	end;
 
 	TPatternEditor = class(TCWEControl)
@@ -110,6 +139,15 @@ type
 		Drawing:	Boolean;
 		Marking: 	Boolean;
 		MarkPos: 	TPoint;
+		UndoBuffer: array[0..29] of TUndoEntry;
+		UndoIndex:	Integer;
+		UndoCount:	Integer;
+		RedoCount:	Integer;
+		UndoInProgress: Boolean;
+		
+		procedure	AddUndoEntry(const Entry: TUndoEntry);
+		procedure	ClearRedo;
+		function	CreateUndoEntry(ActionType: TUndoActionType; Pattern: Byte; const Description: AnsiString): TUndoEntry;
 	public
 		Cursor:		TEditCursor;
 		Selection: 	TRect;
@@ -151,6 +189,11 @@ type
 		procedure 	BlockSetSample;
 
 		procedure 	ReplaceSample(iFrom, iTo: Byte);
+
+		procedure 	Undo;
+		procedure 	Redo;
+		function	CanUndo: Boolean;
+		function	CanRedo: Boolean;
 
 		procedure 	MessageText(const S: String); inline;
 		procedure 	SaveModule(const Filename: String = '');
@@ -217,6 +260,10 @@ begin
 	Locked := False;
 	NoteStep := 1;
 	Selection := Types.Rect(-1, -1, -1, -1);
+	UndoIndex := -1;
+	UndoCount := 0;
+	RedoCount := 0;
+	UndoInProgress := False;
 
 	SetBorder(True, True, True, False);
 
@@ -313,6 +360,8 @@ begin
 		Bind(keyChannelSolo,			'Channel.Solo', 			'Alt+F10');
 		Bind(keyPatternInsert,			'Pattern.Insert',			'Ctrl+Insert');
 		Bind(keyPatternDelete,			'Pattern.Delete',			'Ctrl+Delete');
+		Bind(keyUndo,					'Edit.Undo',				'Ctrl+Z');
+		Bind(keyRedo,					'Edit.Redo',				'Ctrl+Y');
 	end;
 
 	ColorBack := 0;
@@ -471,6 +520,136 @@ begin
 	ChangeScreen(TCWEScreen(LogScreen));
 end;
 
+// ==========================================================================
+// Undo/Redo System
+// ==========================================================================
+
+procedure TPatternEditor.ClearRedo;
+begin
+	RedoCount := 0;
+end;
+
+function TPatternEditor.CreateUndoEntry(ActionType: TUndoActionType; Pattern: Byte; const Description: AnsiString): TUndoEntry;
+begin
+	Result.ActionType := ActionType;
+	Result.Pattern := Pattern;
+	Result.Description := Description;
+	SetLength(Result.Changes, 0);
+end;
+
+procedure TPatternEditor.AddUndoEntry(const Entry: TUndoEntry);
+var
+	i: Integer;
+begin
+	if UndoInProgress then Exit;
+	
+	// Clear redo stack when new action is performed
+	ClearRedo;
+	
+	// Move forward in circular buffer
+	Inc(UndoIndex);
+	if UndoIndex >= 30 then
+		UndoIndex := 0;
+	
+	// If buffer is full, we're overwriting oldest entry
+	if UndoCount < 30 then
+		Inc(UndoCount);
+	
+	// Store the entry
+	UndoBuffer[UndoIndex] := Entry;
+end;
+
+function TPatternEditor.CanUndo: Boolean;
+begin
+	Result := (UndoCount > 0) and (UndoIndex >= 0);
+end;
+
+function TPatternEditor.CanRedo: Boolean;
+begin
+	// Can redo if there are entries after the current undo position
+	Result := (RedoCount > 0) and (UndoCount + RedoCount <= 30);
+end;
+
+procedure TPatternEditor.Undo;
+var
+	Entry: TUndoEntry;
+	i: Integer;
+	Change: TUndoChange;
+begin
+	if not CanUndo then
+	begin
+		MessageText('Nothing to undo.');
+		Exit;
+	end;
+	
+	Entry := UndoBuffer[UndoIndex];
+	UndoInProgress := True;
+	Locked := True;
+	
+	try
+		// Apply undo: restore old note values
+		for i := 0 to High(Entry.Changes) do
+		begin
+			Change := Entry.Changes[i];
+			Module.Notes[Entry.Pattern, Change.Channel, Change.Row] := Change.OldNote;
+		end;
+		
+		// Move backwards in undo stack, add to redo
+		Dec(UndoIndex);
+		if UndoIndex < 0 then
+			UndoIndex := 29;
+		Dec(UndoCount);
+		Inc(RedoCount);
+		
+		MessageText('Undo: ' + Entry.Description);
+	finally
+		Locked := False;
+		UndoInProgress := False;
+		Module.SetModified;
+	end;
+end;
+
+procedure TPatternEditor.Redo;
+var
+	Entry: TUndoEntry;
+	i: Integer;
+	Change: TUndoChange;
+begin
+	if not CanRedo then
+	begin
+		MessageText('Nothing to redo.');
+		Exit;
+	end;
+	
+	// Move forward to get the redo entry
+	Inc(UndoIndex);
+	if UndoIndex >= 30 then
+		UndoIndex := 0;
+	
+	Entry := UndoBuffer[UndoIndex];
+	UndoInProgress := True;
+	Locked := True;
+	
+	try
+		// Apply redo: restore new note values
+		for i := 0 to High(Entry.Changes) do
+		begin
+			Change := Entry.Changes[i];
+			Module.Notes[Entry.Pattern, Change.Channel, Change.Row] := Change.NewNote;
+		end;
+		
+		// Move forward in undo stack, remove from redo
+		Inc(UndoCount);
+		Dec(RedoCount);
+		
+		MessageText('Redo: ' + Entry.Description);
+	finally
+		Locked := False;
+		UndoInProgress := False;
+		Module.SetModified;
+	end;
+end;
+
 function TPatternEditor.IsValidPosition(Pattern, Channel, Row: Byte): Boolean;
 begin
 	Result :=
@@ -491,10 +670,89 @@ function TPatternEditor.SetNote(Pattern, Channel, Row: Byte; Note: TNote;
 	Masked: Boolean = False): Boolean;
 var
 	DestNote: PNote;
+	OldNote: TNote;
+	UndoEntry: TUndoEntry;
+	Change: TUndoChange;
 begin
 	Result := IsValidPosition(Pattern, Channel, Row);
 	if Result then
 	begin
+		// Capture old note for undo (only if not already in undo operation)
+		if not UndoInProgress and not Locked then
+		begin
+			OldNote := Module.Notes[Pattern, Channel, Row];
+			
+			// Check if note actually changed
+			if not Masked then
+			begin
+				if (OldNote.Pitch <> Note.Pitch) or (OldNote.Sample <> Note.Sample) or
+				   (OldNote.Command <> Note.Command) or (OldNote.Parameter <> Note.Parameter) then
+				begin
+					UndoEntry := CreateUndoEntry(uaSetNote, Pattern, 'Set note');
+					SetLength(UndoEntry.Changes, 1);
+					Change.Pattern := Pattern;
+					Change.Channel := Channel;
+					Change.Row := Row;
+					Change.OldNote := OldNote;
+					Change.NewNote := Note;
+					UndoEntry.Changes[0] := Change;
+					AddUndoEntry(UndoEntry);
+				end;
+			end
+			else
+			begin
+				// For masked operations, we need to check what actually changed
+				DestNote := @Module.Notes[Pattern, Channel, Row];
+				case Cursor.Column of
+					COL_NOTE, COL_OCTAVE:
+						if DestNote.Pitch <> Note.Pitch then
+						begin
+							UndoEntry := CreateUndoEntry(uaSetNote, Pattern, 'Set note');
+							SetLength(UndoEntry.Changes, 1);
+							Change.Pattern := Pattern;
+							Change.Channel := Channel;
+							Change.Row := Row;
+							Change.OldNote := OldNote;
+							Change.NewNote := OldNote;
+							Change.NewNote.Pitch := Note.Pitch;
+							UndoEntry.Changes[0] := Change;
+							AddUndoEntry(UndoEntry);
+						end;
+					COL_SAMPLE_1, COL_SAMPLE_2:
+						if DestNote.Sample <> Note.Sample then
+						begin
+							UndoEntry := CreateUndoEntry(uaSetNote, Pattern, 'Set note');
+							SetLength(UndoEntry.Changes, 1);
+							Change.Pattern := Pattern;
+							Change.Channel := Channel;
+							Change.Row := Row;
+							Change.OldNote := OldNote;
+							Change.NewNote := OldNote;
+							Change.NewNote.Sample := Note.Sample;
+							UndoEntry.Changes[0] := Change;
+							AddUndoEntry(UndoEntry);
+						end;
+					COL_VOLUME_1, COL_VOLUME_2,
+					COL_COMMAND,
+					COL_PARAMETER_1, COL_PARAMETER_2:
+						if (DestNote.Command <> Note.Command) or (DestNote.Parameter <> Note.Parameter) then
+						begin
+							UndoEntry := CreateUndoEntry(uaSetNote, Pattern, 'Set note');
+							SetLength(UndoEntry.Changes, 1);
+							Change.Pattern := Pattern;
+							Change.Channel := Channel;
+							Change.Row := Row;
+							Change.OldNote := OldNote;
+							Change.NewNote := OldNote;
+							Change.NewNote.Command := Note.Command;
+							Change.NewNote.Parameter := Note.Parameter;
+							UndoEntry.Changes[0] := Change;
+							AddUndoEntry(UndoEntry);
+						end;
+				end;
+			end;
+		end;
+		
 		if not Masked then
 			Module.Notes[Pattern, Channel, Row] := Note
 		else
@@ -527,7 +785,10 @@ end;
 
 procedure TPatternEditor.InsertNote(Pattern, Channel, Row: Byte; WholePattern: Boolean = False);
 var
-	Y, ch1, ch2: Integer;
+	Y, ch1, ch2, ch: Integer;
+	UndoEntry: TUndoEntry;
+	Change: TUndoChange;
+	i: Integer;
 begin
 	if WholePattern then
 	begin
@@ -538,6 +799,32 @@ begin
 	begin
 		ch1 := Channel;
 		ch2 := Channel;
+	end;
+
+	// Capture state for undo (only if not already in undo operation)
+	if not UndoInProgress and not Locked then
+	begin
+		UndoEntry := CreateUndoEntry(uaInsertNote, Pattern, 'Insert row');
+		SetLength(UndoEntry.Changes, (ch2 - ch1 + 1) * (64 - Row));
+		i := 0;
+		for ch := ch1 to ch2 do
+		begin
+			for Y := Row to 63 do
+			begin
+				Change.Pattern := Pattern;
+				Change.Channel := ch;
+				Change.Row := Y;
+				Change.OldNote := Module.Notes[Pattern, ch, Y];
+				if Y = Row then
+					Change.NewNote := EmptyNote
+				else
+					Change.NewNote := Module.Notes[Pattern, ch, Y-1];
+				UndoEntry.Changes[i] := Change;
+				Inc(i);
+			end;
+		end;
+		AddUndoEntry(UndoEntry);
+		Locked := True; // Prevent SetNote from creating duplicate undo entries
 	end;
 
 	for Channel := ch1 to ch2 do
@@ -547,14 +834,20 @@ begin
 				Module.Notes[Pattern, Channel, Y-1];
 		SetNote(Pattern, Channel, Row, EmptyNote);
 	end;
-
-	if not Locked then
+	
+	if not UndoInProgress then
+	begin
+		Locked := False;
 		Module.SetModified;
+	end;
 end;
 
 procedure TPatternEditor.DeleteNote(Pattern, Channel, Row: Byte; WholePattern: Boolean = False);
 var
-	Y, ch1, ch2: Integer;
+	Y, ch1, ch2, ch: Integer;
+	UndoEntry: TUndoEntry;
+	Change: TUndoChange;
+	i: Integer;
 begin
 	if WholePattern then
 	begin
@@ -567,6 +860,32 @@ begin
 		ch2 := Channel;
 	end;
 
+	// Capture state for undo (only if not already in undo operation)
+	if not UndoInProgress and not Locked then
+	begin
+		UndoEntry := CreateUndoEntry(uaDeleteNote, Pattern, 'Delete row');
+		SetLength(UndoEntry.Changes, (ch2 - ch1 + 1) * (64 - Row));
+		i := 0;
+		for ch := ch1 to ch2 do
+		begin
+			for Y := Row to 63 do
+			begin
+				Change.Pattern := Pattern;
+				Change.Channel := ch;
+				Change.Row := Y;
+				Change.OldNote := Module.Notes[Pattern, ch, Y];
+				if Y < 63 then
+					Change.NewNote := Module.Notes[Pattern, ch, Y+1]
+				else
+					Change.NewNote := EmptyNote;
+				UndoEntry.Changes[i] := Change;
+				Inc(i);
+			end;
+		end;
+		AddUndoEntry(UndoEntry);
+		Locked := True; // Prevent SetNote from creating duplicate undo entries
+	end;
+
 	for Channel := ch1 to ch2 do
 	begin
 		for Y := Row to 62 do
@@ -574,9 +893,12 @@ begin
 				Module.Notes[Pattern, Channel, Y+1];
 		Module.Notes[Pattern, Channel, 63] := EmptyNote;
 	end;
-
-	if not Locked then
+	
+	if not UndoInProgress then
+	begin
+		Locked := False;
 		Module.SetModified;
+	end;
 end;
 
 procedure TPatternEditor.NoteTranspose(Pattern, Channel, Row: Byte; Semitones: ShortInt);
@@ -1013,6 +1335,7 @@ var
 	Sc, Scs: EditorKeyNames;
 	AllowEditing: Boolean;
 	chrKey: AnsiString;
+	NewNote: TNote;
 label
 	Done;
 begin
@@ -1165,39 +1488,35 @@ begin
 						end
 						else
 						begin
-							with Cursor.Note^ do
+							// Create new note with changes
+							LastNote := Cursor.Note^;
+							LastNote.Pitch := n + 1;
+							if EditMask[EM_SAMPLE] then
+								LastNote.Sample := CurrentSample;
+
+							if EditMask[EM_VOLUME] then
 							begin
-								Pitch := n + 1;
-								if EditMask[EM_SAMPLE] then
-									Sample := CurrentSample;
-
-								if EditMask[EM_VOLUME] then
+								if LastNote.Command = $C then
 								begin
-									if LastNote.Command = $C then
-									begin
-										Command   := LastNote.Command;
-										Parameter := LastNote.Parameter;
-									end
-									else
-									begin
-										Command   := $0;
-										Parameter := $0;
-									end;
-								end;
-								if EditMask[EM_EFFECT] then
+									LastNote.Command   := LastNote.Command;
+									LastNote.Parameter := LastNote.Parameter;
+								end
+								else
 								begin
-									Command   := LastNote.Command;
-									Parameter := LastNote.Parameter;
+									LastNote.Command   := $0;
+									LastNote.Parameter := $0;
 								end;
-
-								//LastNote.Period := Period;
-								LastNote.Pitch  := Pitch;
-								LastNote.Sample := Sample;
+							end;
+							if EditMask[EM_EFFECT] then
+							begin
+								LastNote.Command   := LastNote.Command;
+								LastNote.Parameter := LastNote.Parameter;
 							end;
 
+							// Use SetNote to track undo
+							SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, LastNote);
 							Module.PlayNote(@LastNote, Cursor.Channel);
 							Advance;
-							Module.SetModified;
 						end; // not Shift
 
 						Result := True;
@@ -1529,56 +1848,66 @@ begin
 			case Cursor.Column of
 
 				COL_NOTE:
-					with Cursor.Note^ do
+				begin
+					NewNote := Cursor.Note^;
+					if EditMask[EM_SAMPLE] then
+						NewNote.Sample := LastNote.Sample;
+					if EditMask[EM_VOLUME] then
 					begin
-						if EditMask[EM_SAMPLE] then
-							Sample := LastNote.Sample;
-						if EditMask[EM_VOLUME] then
+						if LastNote.Command = $C then
 						begin
-							if LastNote.Command = $C then
-							begin
-								Command   := LastNote.Command;
-								Parameter := LastNote.Parameter;
-							end
-							else
-							begin
-								Command   := $0;
-								Parameter := $0;
-							end;
-						end;
-						if EditMask[EM_EFFECT] then
+							NewNote.Command   := LastNote.Command;
+							NewNote.Parameter := LastNote.Parameter;
+						end
+						else
 						begin
-							Command   := LastNote.Command;
-							Parameter := LastNote.Parameter;
+							NewNote.Command   := $0;
+							NewNote.Parameter := $0;
 						end;
-
-						Pitch := LastNote.Pitch;
-						Module.PlayNote(Cursor.Note, Cursor.Channel);
 					end;
+					if EditMask[EM_EFFECT] then
+					begin
+						NewNote.Command   := LastNote.Command;
+						NewNote.Parameter := LastNote.Parameter;
+					end;
+					NewNote.Pitch := LastNote.Pitch;
+					SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, NewNote);
+					Module.PlayNote(Cursor.Note, Cursor.Channel);
+				end;
 
 				COL_SAMPLE_1, COL_SAMPLE_2:
-					Cursor.Note.Sample := LastNote.Sample;
+				begin
+					NewNote := Cursor.Note^;
+					NewNote.Sample := LastNote.Sample;
+					SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, NewNote);
+				end;
 
 				COL_VOLUME_1, COL_VOLUME_2:
-					with Cursor.Note^ do
-					begin
-						Command   := $C; // ???
-						Parameter := Min(64, LastNote.Parameter);
-					end;
+				begin
+					NewNote := Cursor.Note^;
+					NewNote.Command   := $C; // ???
+					NewNote.Parameter := Min(64, LastNote.Parameter);
+					SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, NewNote);
+				end;
 
 				COL_COMMAND:
 				begin
-					if Cursor.Note.Command = $C then
-						Cursor.Note.Parameter := Min(64, Cursor.Note.Parameter)
+					NewNote := Cursor.Note^;
+					if NewNote.Command = $C then
+						NewNote.Parameter := Min(64, NewNote.Parameter)
 					else
-						Cursor.Note.Command := LastNote.Command;
+						NewNote.Command := LastNote.Command;
+					SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, NewNote);
 				end;
 
 				COL_PARAMETER_1, COL_PARAMETER_2:
-					Cursor.Note.Parameter := LastNote.Parameter;
+				begin
+					NewNote := Cursor.Note^;
+					NewNote.Parameter := LastNote.Parameter;
+					SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, NewNote);
+				end;
 			end;
 
-			Module.SetModified;
 			Advance;
 			Result := True;
 		end;
@@ -1761,6 +2090,22 @@ begin
 			DeletePattern(CurrentPattern);
 		end;
 
+		// Undo/Redo
+
+		keyUndo:
+		begin
+			Result := True;
+			if AllowEditing then
+				Undo;
+		end;
+
+		keyRedo:
+		begin
+			Result := True;
+			if AllowEditing then
+				Redo;
+		end;
+
 		// Misc
 
 		keySelectSamplePrev:
@@ -1817,18 +2162,17 @@ begin
 				if o in [1..3] then
 				begin
 					Result := True;
-					with Cursor.Note^ do
-						if Pitch > 0 then
+					if Cursor.Note^.Pitch > 0 then
+					begin
+						n := (Cursor.Note^.Pitch - 1) mod 12;
+						if n >= 0 then
 						begin
-							n := (Pitch - 1) mod 12;
-							if n >= 0 then
-							begin
-								Pitch := n + 1 + ((o - 1) * 12);
-								LastNote.Pitch := Pitch;
-								Module.SetModified;
-								Advance;
-							end;
+							LastNote := Cursor.Note^;
+							LastNote.Pitch := n + 1 + ((o - 1) * 12);
+							SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, LastNote);
+							Advance;
 						end;
+					end;
 				end;
 			end;
 
@@ -1838,10 +2182,10 @@ begin
 				if o in [0..3] then
 				begin
 					Result := True;
-					Cursor.Note.Sample := Min((o * 10) + (Cursor.Note.Sample mod 10), 31);
-					LastNote.Sample := Cursor.Note.Sample;
-					Editor.SetSample(Cursor.Note.Sample);
-					Module.SetModified;
+					LastNote := Cursor.Note^;
+					LastNote.Sample := Min((o * 10) + (LastNote.Sample mod 10), 31);
+					SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, LastNote);
+					Editor.SetSample(LastNote.Sample);
 					Inc(Cursor.Column);
 				end;
 			end;
@@ -1851,10 +2195,10 @@ begin
 				o := Pos(chrKey, KeyboardNumbers) - 1;
 				if o >= 0 then
 				begin
-					Cursor.Note.Sample := Min((Cursor.Note.Sample div 10 * 10) + o, 31);
-					LastNote.Sample := Cursor.Note.Sample;
-					Editor.SetSample(Cursor.Note.Sample);
-					Module.SetModified;
+					LastNote := Cursor.Note^;
+					LastNote.Sample := Min((LastNote.Sample div 10 * 10) + o, 31);
+					SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, LastNote);
+					Editor.SetSample(LastNote.Sample);
 					Dec(Cursor.Column);
 					Advance;
 					Result := True;
@@ -1866,13 +2210,12 @@ begin
 				o := Pos(chrKey, KeyboardNumbers) - 1;
 				if o >= 0 then
 				begin
-					if Cursor.Note.Command <> $C then
-						Cursor.Note.Parameter := 0;
-					Cursor.Note.Command := $C;
-					Cursor.Note.Parameter := Min( (o * 10) + (Cursor.Note.Parameter mod 10), 64);
+					LastNote := Cursor.Note^;
+					if LastNote.Command <> $C then
+						LastNote.Parameter := 0;
 					LastNote.Command := $C;
-					LastNote.Parameter := Cursor.Note.Parameter;
-					Module.SetModified;
+					LastNote.Parameter := Min( (o * 10) + (LastNote.Parameter mod 10), 64);
+					SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, LastNote);
 					Inc(Cursor.Column);
 					Result := True;
 				end;
@@ -1883,13 +2226,12 @@ begin
 				o := Pos(chrKey, KeyboardNumbers) - 1;
 				if o >= 0 then
 				begin
-					if Cursor.Note.Command <> $C then
-						Cursor.Note.Parameter := 0;
-					Cursor.Note.Command := $C;
-					Cursor.Note.Parameter := Min( (Cursor.Note.Parameter div 10 * 10) + o, 64);
+					LastNote := Cursor.Note^;
+					if LastNote.Command <> $C then
+						LastNote.Parameter := 0;
 					LastNote.Command := $C;
-					LastNote.Parameter := Cursor.Note.Parameter;
-					Module.SetModified;
+					LastNote.Parameter := Min( (LastNote.Parameter div 10 * 10) + o, 64);
+					SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, LastNote);
 					Dec(Cursor.Column);
 					Advance;
 					Result := True;
@@ -1901,17 +2243,11 @@ begin
 				o := Pos(chrKey, CmdChars) - 1;
 				if o >= 0 then
 				begin
-					if Cursor.Note.Command = $C then
-						Cursor.Note.Parameter := 0;
-
-					Cursor.Note.Command := o;
-					{if o = $C then
-						Cursor.Note.Parameter := Min(64, Cursor.Note.Parameter);}
-
-					LastNote.Command := Cursor.Note.Command;
-					LastNote.Pitch := Cursor.Note.Pitch;
-
-					Module.SetModified;
+					LastNote := Cursor.Note^;
+					if LastNote.Command = $C then
+						LastNote.Parameter := 0;
+					LastNote.Command := o;
+					SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, LastNote);
 					Advance;
 					Result := True;
 				end;
@@ -1924,20 +2260,20 @@ begin
 				o := Pos(chrKey, KeyboardHexNumbers) - 1;
 				if o >= 0 then
 				begin
+					LastNote := Cursor.Note^;
 					if Cursor.Column = COL_PARAMETER_1 then
 					begin
-						Cursor.Note.Parameter := (o * $10) + (Cursor.Note.Parameter mod $10);
+						LastNote.Parameter := (o * $10) + (LastNote.Parameter mod $10);
+						SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, LastNote);
 						Inc(Cursor.Column);
 					end
 					else
 					begin
-						Cursor.Note.Parameter := (Cursor.Note.Parameter div $10 * $10) + o;
+						LastNote.Parameter := (LastNote.Parameter div $10 * $10) + o;
+						SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, LastNote);
 						Cursor.Column := COL_PARAMETER_1;
 						Advance;
 					end;
-					LastNote.Parameter := Cursor.Note.Parameter;
-					LastNote.Pitch := Cursor.Note.Pitch;
-					Module.SetModified;
 					Result := True;
 				end;
 			end;

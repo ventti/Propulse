@@ -7,7 +7,7 @@
 ; <bX>    Set background color (X=0..F)
 ; <#X>    Create anchor
 ; <@X>    Link to anchor or URL
-;       § Normal text (=Implemented in Propulse)
+;       ï¿½ Normal text (=Implemented in Propulse)
 ; ;     | Hidden text (=Unimplemented)
 ;============================================================================
 
@@ -123,6 +123,9 @@
  
     Ins/Del          Insert/Delete a row to/from current channel
     Alt-Ins/Del      Insert/Delete an entire row to/from pattern  (*)
+ 
+    Ctrl-Z           Undo last change (up to 30 changes)
+    Ctrl-Y           Redo last undone change
  
     Up/Down          Move up/down by the skipvalue (set with Alt 0-9)
 ;   Ctrl-Home/End    Move up/down by 1 row
