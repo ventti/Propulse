@@ -372,6 +372,7 @@ fix-dylib-paths:
 	@echo "Fixing dylib paths in $(BINARY)..."
 	@SDL2_PATH=$$(otool -L "$(BINARY)" 2>/dev/null | grep -i "libSDL2" | head -1 | awk '{print $$1}' | tr -d ' '); \
 	BASS_PATH=$$(otool -L "$(BINARY)" 2>/dev/null | grep -i "libbass" | head -1 | awk '{print $$1}' | tr -d ' '); \
+	SOXR_PATH=$$(otool -L "$(BINARY)" 2>/dev/null | grep -i "libsoxr" | head -1 | awk '{print $$1}' | tr -d ' '); \
 	if [ -n "$$SDL2_PATH" ] && [ "$$SDL2_PATH" != "@executable_path/libSDL2.dylib" ]; then \
 		echo "  Changing SDL2 path: $$SDL2_PATH -> @executable_path/libSDL2.dylib"; \
 		install_name_tool -change "$$SDL2_PATH" "@executable_path/libSDL2.dylib" "$(BINARY)" || true; \
@@ -379,6 +380,10 @@ fix-dylib-paths:
 	if [ -n "$$BASS_PATH" ] && [ "$$BASS_PATH" != "@executable_path/libbass.dylib" ]; then \
 		echo "  Changing BASS path: $$BASS_PATH -> @executable_path/libbass.dylib"; \
 		install_name_tool -change "$$BASS_PATH" "@executable_path/libbass.dylib" "$(BINARY)" || true; \
+	fi; \
+	if [ -n "$$SOXR_PATH" ] && [ "$$SOXR_PATH" != "@executable_path/libsoxr.dylib" ]; then \
+		echo "  Changing SOXR path: $$SOXR_PATH -> @executable_path/libsoxr.dylib"; \
+		install_name_tool -change "$$SOXR_PATH" "@executable_path/libsoxr.dylib" "$(BINARY)" || true; \
 	fi
 	@echo "Dylib paths fixed."
 
@@ -580,21 +585,8 @@ package-macos-arm64: $(BIN_DIR)/$(PROJECT_NAME)-macos-arm64
 		echo "  Note: Package will be created but may be incomplete without dylibs."; \
 	fi; \
 	echo "  Fixing dylib paths..."; \
-	if [ -f "$$PACKAGE_DIR/$$PACKAGE_NAME/libSDL2.dylib" ]; then \
-		install_name_tool -change "@rpath/libSDL2.dylib" "@executable_path/libSDL2.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-		install_name_tool -change "/opt/homebrew/lib/libSDL2.dylib" "@executable_path/libSDL2.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-		install_name_tool -change "/usr/local/lib/libSDL2.dylib" "@executable_path/libSDL2.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-	fi; \
-	if [ -f "$$PACKAGE_DIR/$$PACKAGE_NAME/libbass.dylib" ]; then \
-		install_name_tool -change "@rpath/libbass.dylib" "@executable_path/libbass.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-		install_name_tool -change "/opt/homebrew/lib/libbass.dylib" "@executable_path/libbass.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-		install_name_tool -change "/usr/local/lib/libbass.dylib" "@executable_path/libbass.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-	fi; \
-	if [ -f "$$PACKAGE_DIR/$$PACKAGE_NAME/libsoxr.dylib" ]; then \
-		install_name_tool -change "@rpath/libsoxr.dylib" "@executable_path/libsoxr.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-		install_name_tool -change "/opt/homebrew/lib/libsoxr.dylib" "@executable_path/libsoxr.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-		install_name_tool -change "/usr/local/lib/libsoxr.dylib" "@executable_path/libsoxr.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-	fi; \
+	BINARY_PATH="$$PACKAGE_DIR/$$PACKAGE_NAME/Propulse"; \
+	$(MAKE) fix-dylib-paths BINARY="$$BINARY_PATH"; \
 	echo "  Copying data files..."; \
 	cp -r data/* $$PACKAGE_DIR/$$PACKAGE_NAME/data/ 2>/dev/null || true; \
 	if [ -f "license.txt" ]; then \
@@ -645,18 +637,8 @@ package-macos-x86: $(BIN_DIR)/$(PROJECT_NAME)-macos-x86
 		echo "  Note: Package will be created but may be incomplete without dylibs."; \
 	fi; \
 	echo "  Fixing dylib paths..."; \
-	if [ -f "$$PACKAGE_DIR/$$PACKAGE_NAME/libSDL2.dylib" ]; then \
-		install_name_tool -change "@rpath/libSDL2.dylib" "@executable_path/libSDL2.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-		install_name_tool -change "/usr/local/lib/libSDL2.dylib" "@executable_path/libSDL2.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-	fi; \
-	if [ -f "$$PACKAGE_DIR/$$PACKAGE_NAME/libbass.dylib" ]; then \
-		install_name_tool -change "@rpath/libbass.dylib" "@executable_path/libbass.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-		install_name_tool -change "/usr/local/lib/libbass.dylib" "@executable_path/libbass.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-	fi; \
-	if [ -f "$$PACKAGE_DIR/$$PACKAGE_NAME/libsoxr.dylib" ]; then \
-		install_name_tool -change "@rpath/libsoxr.dylib" "@executable_path/libsoxr.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-		install_name_tool -change "/usr/local/lib/libsoxr.dylib" "@executable_path/libsoxr.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
-	fi; \
+	BINARY_PATH="$$PACKAGE_DIR/$$PACKAGE_NAME/Propulse"; \
+	$(MAKE) fix-dylib-paths BINARY="$$BINARY_PATH"; \
 	echo "  Copying data files..."; \
 	cp -r data/* $$PACKAGE_DIR/$$PACKAGE_NAME/data/ 2>/dev/null || true; \
 	if [ -f "license.txt" ]; then \
