@@ -26,11 +26,13 @@ Supported formats:
 
 ![Settings screen screenshot](https://github.com/hukkax/Propulse/blob/trunk/docs/images/ss3.png)
 
+> **Note:** The build instructions below are additions to the original tool.
+
 ## Building
 
+Currently the build setup is designed for macOS only.
+
 ### macOS (ARM64)
-
-
 
 Quick setup:
 ```bash
