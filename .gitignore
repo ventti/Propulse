@@ -58,6 +58,7 @@ debug\.txt
 *.rar
 *.dbg
 *.so
+*.dylib
 *.s
 *.o
 *.ppu
@@ -74,8 +75,21 @@ src/include/lazsdl2/java_templates/
 src/include/generics\.collections/
 src/include/_generics\.collections/
 Propulse\.app/
-!bin/
-!bin/*
+
+# Build artifacts
+*.compiled
+link*.res
+linkfiles*.res
+ppaslink.sh
+symbol_order.fpc
+
+# Compiled units (FPC output directories)
+src/lib/
+
+# Bin directory build artifacts (keep specific tracked directories)
+bin/Propulse-*
+bin/package-*/
+# Keep specific tracked directories
 !bin/linux-64bit/
 !bin/linux-64bit/*
 !bin/windows-32bit/
