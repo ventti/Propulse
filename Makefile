@@ -48,7 +48,8 @@ ifeq ($(TARGET),macos-arm64)
   BINARY_EXT =
   UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/aarch64-darwin
   PLATFORM_DEFINES = -dCPUAARCH64 -dTARGET_ARM64 -dUSENATIVECODE
-  LIB_PATHS = -k-L$(OUTPUT_DIR) -k-L/opt/homebrew/lib
+  LIB_DIR = lib/macos-arm64
+  LIB_PATHS = -k-L$(LIB_DIR) -k-L/opt/homebrew/lib
   POST_BUILD =
 else ifeq ($(TARGET),macos-x86)
   TARGET_CPU = i386
@@ -56,7 +57,8 @@ else ifeq ($(TARGET),macos-x86)
   BINARY_EXT =
   UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/i386-darwin
   PLATFORM_DEFINES = -dCPUI386 -dTARGET_X86 -dUSENATIVECODE
-  LIB_PATHS = -k-L$(OUTPUT_DIR) -k-L/usr/local/lib
+  LIB_DIR = lib/macos-x86
+  LIB_PATHS = -k-L$(LIB_DIR) -k-L/usr/local/lib
   POST_BUILD =
 else ifeq ($(TARGET),windows-x64)
   TARGET_CPU = x86_64
@@ -64,7 +66,8 @@ else ifeq ($(TARGET),windows-x64)
   BINARY_EXT = .exe
   UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/x86_64-win64
   PLATFORM_DEFINES = -dCPUX86_64 -dTARGET_X64 -dWINDOWS
-  LIB_PATHS = -k-L$(OUTPUT_DIR)
+  LIB_DIR = lib/windows-x64
+  LIB_PATHS = -k-L$(LIB_DIR)
   POST_BUILD =
 else ifeq ($(TARGET),linux-x64)
   TARGET_CPU = x86_64
@@ -72,7 +75,8 @@ else ifeq ($(TARGET),linux-x64)
   BINARY_EXT =
   UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/x86_64-linux
   PLATFORM_DEFINES = -dCPUX86_64 -dTARGET_X64 -dLINUX
-  LIB_PATHS = -k-L$(OUTPUT_DIR) -k-L/usr/lib -k-L/usr/local/lib
+  LIB_DIR = lib/linux-x64
+  LIB_PATHS = -k-L$(LIB_DIR) -k-L/usr/lib -k-L/usr/local/lib
   POST_BUILD =
 else ifeq ($(TARGET),linux-arm64)
   TARGET_CPU = aarch64
@@ -80,7 +84,8 @@ else ifeq ($(TARGET),linux-arm64)
   BINARY_EXT =
   UNIT_OUTPUT_DIR = $(SRC_DIR)/lib/aarch64-linux
   PLATFORM_DEFINES = -dCPUAARCH64 -dTARGET_ARM64 -dLINUX
-  LIB_PATHS = -k-L$(OUTPUT_DIR) -k-L/usr/lib -k-L/usr/local/lib
+  LIB_DIR = lib/linux-arm64
+  LIB_PATHS = -k-L$(LIB_DIR) -k-L/usr/lib -k-L/usr/local/lib
   POST_BUILD =
 else
   $(error Unknown target: $(TARGET). Use 'make help-targets' to see available targets)
@@ -247,7 +252,7 @@ ifeq ($(IS_CROSS_COMPILE),1)
 	-Fi$(SRC_DIR) \
 	-Fl$(SRC_DIR)/include/sdl2 \
 	-Fl$(SRC_DIR)/include/bass \
-	-FE$(OUTPUT_DIR) \
+	-FE$(BIN_DIR) \
 	-FU$(UNIT_OUTPUT_DIR) \
 	-Xd
   else
@@ -261,7 +266,7 @@ ifeq ($(IS_CROSS_COMPILE),1)
 	-Fi$(SRC_DIR) \
 	-Fl$(SRC_DIR)/include/sdl2 \
 	-Fl$(SRC_DIR)/include/bass \
-	-FE$(OUTPUT_DIR) \
+	-FE$(BIN_DIR) \
 	-FU$(UNIT_OUTPUT_DIR) \
 	-Xd
   endif
@@ -276,7 +281,7 @@ FPC_FLAGS_BASE = \
 	-Fi$(SRC_DIR) \
 	-Fl$(SRC_DIR)/include/sdl2 \
 	-Fl$(SRC_DIR)/include/bass \
-	-FE$(OUTPUT_DIR) \
+	-FE$(BIN_DIR) \
 	-FU$(UNIT_OUTPUT_DIR) \
 	-Xd
 endif
@@ -314,12 +319,12 @@ FPC_FLAGS_DEBUG = \
 MAIN_SOURCE = $(SRC_DIR)/propulse.pas
 RESOURCE_FILE = $(SRC_DIR)/propulse.res
 
-# Output binary names
+# Output binary names (output directly to BIN_DIR)
 ifeq ($(MODE),debug)
-  OUTPUT_BINARY = $(OUTPUT_DIR)/$(PROJECT_NAME)-$(TARGET)-debug$(BINARY_EXT)
+  OUTPUT_BINARY = $(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)-debug$(BINARY_EXT)
   FPC_FLAGS = $(FPC_FLAGS_DEBUG)
 else
-  OUTPUT_BINARY = $(OUTPUT_DIR)/$(PROJECT_NAME)-$(TARGET)$(BINARY_EXT)
+  OUTPUT_BINARY = $(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)$(BINARY_EXT)
   FPC_FLAGS = $(FPC_FLAGS_RELEASE)
 endif
 
@@ -343,12 +348,14 @@ $(OUTPUT_BINARY): $(MAIN_SOURCE) $(RESOURCE_FILE)
 	@echo "Building $(PROJECT_NAME) for $(TARGET) ($(MODE))..."
 	@echo "  Target: $(TARGET_CPU)-$(TARGET_OS)"
 	@mkdir -p $(UNIT_OUTPUT_DIR)
-	@mkdir -p $(OUTPUT_DIR)
 	@mkdir -p $(BIN_DIR)
 	$(FPC) $(FPC_FLAGS) $(UNIT_PATHS) $(MAIN_SOURCE) -o$(OUTPUT_BINARY) \
 		-k-lSDL2 -k-lbass $(LIB_PATHS)
 	@echo "Build complete: $(OUTPUT_BINARY)"
-	@cp $(OUTPUT_BINARY) $(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)$(BINARY_EXT) 2>/dev/null || true
+	@if [ -d "$(LIB_DIR)" ]; then \
+		echo "Copying libraries from $(LIB_DIR) to $(BIN_DIR)..."; \
+		cp $(LIB_DIR)/* $(BIN_DIR)/ 2>/dev/null || true; \
+	fi
 
 # Fix dylib paths (macOS only) - manual target, not run automatically
 # Usage: make fix-dylib-paths BINARY=<path-to-binary>
@@ -399,8 +406,8 @@ all-targets-debug:
 clean:
 	@echo "Cleaning build artifacts for $(TARGET)..."
 	rm -rf $(UNIT_OUTPUT_DIR)
-	rm -f $(OUTPUT_DIR)/$(PROJECT_NAME)-$(TARGET)*
 	rm -f $(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)*
+	rm -f $(BIN_DIR)/*.dylib $(BIN_DIR)/*.dll $(BIN_DIR)/*.so 2>/dev/null || true
 	rm -f $(OUTPUT_DIR)/*.o
 	rm -f $(OUTPUT_DIR)/*.ppu
 	@echo "Clean complete."
@@ -486,11 +493,11 @@ help-targets:
 # Note: PACKAGE_NAME is set per-target below to avoid variable expansion issues
 
 # Package for Windows
-package-windows-x64: $(OUTPUT_DIR)/$(PROJECT_NAME)-windows-x64.exe
+package-windows-x64: $(BIN_DIR)/$(PROJECT_NAME)-windows-x64.exe
 	@echo "Packaging $(PROJECT_NAME) for Windows x64..."
 	@PACKAGE_DIR="$(BIN_DIR)/package-windows-x64"; \
 	PACKAGE_NAME="$(PROJECT_NAME)-windows-x64"; \
-	if [ ! -f "$(OUTPUT_DIR)/$(PROJECT_NAME)-windows-x64.exe" ]; then \
+	if [ ! -f "$(BIN_DIR)/$(PROJECT_NAME)-windows-x64.exe" ]; then \
 		echo "Error: Binary not found. Build it first with: make TARGET=windows-x64 release"; \
 		exit 1; \
 	fi; \
@@ -498,22 +505,26 @@ package-windows-x64: $(OUTPUT_DIR)/$(PROJECT_NAME)-windows-x64.exe
 	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME; \
 	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME/data; \
 	echo "  Copying binary..."; \
-	cp $(OUTPUT_DIR)/$(PROJECT_NAME)-windows-x64.exe $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse.exe; \
+	cp $(BIN_DIR)/$(PROJECT_NAME)-windows-x64.exe $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse.exe; \
 	echo "  Copying DLLs..."; \
 	DLLS_MISSING=0; \
-	if [ ! -f "bass.dll" ]; then \
-		echo "  Warning: bass.dll not found. Download Windows x64 version from https://www.un4seen.com/"; \
+	if [ ! -f "$(BIN_DIR)/bass.dll" ]; then \
+		echo "  Warning: bass.dll not found in $(BIN_DIR). Download Windows x64 version from https://www.un4seen.com/"; \
 		DLLS_MISSING=1; \
 	else \
-		cp bass.dll $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+		cp $(BIN_DIR)/bass.dll $$PACKAGE_DIR/$$PACKAGE_NAME/; \
 		echo "  ✓ bass.dll"; \
 	fi; \
-	if [ ! -f "SDL2.dll" ]; then \
-		echo "  Warning: SDL2.dll not found. Download Windows x64 version from https://www.libsdl.org/"; \
+	if [ ! -f "$(BIN_DIR)/SDL2.dll" ]; then \
+		echo "  Warning: SDL2.dll not found in $(BIN_DIR). Download Windows x64 version from https://www.libsdl.org/"; \
 		DLLS_MISSING=1; \
 	else \
-		cp SDL2.dll $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+		cp $(BIN_DIR)/SDL2.dll $$PACKAGE_DIR/$$PACKAGE_NAME/; \
 		echo "  ✓ SDL2.dll"; \
+	fi; \
+	if [ -f "$(BIN_DIR)/libsoxr.dll" ]; then \
+		cp $(BIN_DIR)/libsoxr.dll $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+		echo "  ✓ libsoxr.dll"; \
 	fi; \
 	if [ $$DLLS_MISSING -eq 1 ]; then \
 		echo "  Note: Package will be created but may be incomplete without DLLs."; \
@@ -531,11 +542,11 @@ package-windows-x64: $(OUTPUT_DIR)/$(PROJECT_NAME)-windows-x64.exe
 	echo "Package created: $$ZIP_FILE"
 
 # Package for macOS
-package-macos-arm64: $(OUTPUT_DIR)/$(PROJECT_NAME)-macos-arm64
+package-macos-arm64: $(BIN_DIR)/$(PROJECT_NAME)-macos-arm64
 	@echo "Packaging $(PROJECT_NAME) for macOS ARM64..."
 	@PACKAGE_DIR="$(BIN_DIR)/package-macos-arm64"; \
 	PACKAGE_NAME="$(PROJECT_NAME)-macos-arm64"; \
-	if [ ! -f "$(OUTPUT_DIR)/$(PROJECT_NAME)-macos-arm64" ]; then \
+	if [ ! -f "$(BIN_DIR)/$(PROJECT_NAME)-macos-arm64" ]; then \
 		echo "Error: Binary not found. Build it first with: make TARGET=macos-arm64 release"; \
 		exit 1; \
 	fi; \
@@ -543,23 +554,27 @@ package-macos-arm64: $(OUTPUT_DIR)/$(PROJECT_NAME)-macos-arm64
 	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME; \
 	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME/data; \
 	echo "  Copying binary..."; \
-	cp $(OUTPUT_DIR)/$(PROJECT_NAME)-macos-arm64 $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse; \
+	cp $(BIN_DIR)/$(PROJECT_NAME)-macos-arm64 $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse; \
 	chmod +x $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse; \
 	echo "  Copying dylibs..."; \
 	DYLIBS_MISSING=0; \
-	if [ ! -f "libbass.dylib" ]; then \
-		echo "  Warning: libbass.dylib not found. Download macOS ARM64 version from https://www.un4seen.com/"; \
+	if [ ! -f "$(BIN_DIR)/libbass.dylib" ]; then \
+		echo "  Warning: libbass.dylib not found in $(BIN_DIR). Download macOS ARM64 version from https://www.un4seen.com/"; \
 		DYLIBS_MISSING=1; \
 	else \
-		cp libbass.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+		cp $(BIN_DIR)/libbass.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
 		echo "  ✓ libbass.dylib"; \
 	fi; \
-	if [ ! -f "libSDL2.dylib" ]; then \
-		echo "  Warning: libSDL2.dylib not found. Install via: brew install sdl2, then copy from /opt/homebrew/lib/"; \
+	if [ ! -f "$(BIN_DIR)/libSDL2.dylib" ]; then \
+		echo "  Warning: libSDL2.dylib not found in $(BIN_DIR). Install via: brew install sdl2, then copy from /opt/homebrew/lib/"; \
 		DYLIBS_MISSING=1; \
 	else \
-		cp libSDL2.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+		cp $(BIN_DIR)/libSDL2.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
 		echo "  ✓ libSDL2.dylib"; \
+	fi; \
+	if [ -f "$(BIN_DIR)/libsoxr.dylib" ]; then \
+		cp $(BIN_DIR)/libsoxr.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+		echo "  ✓ libsoxr.dylib"; \
 	fi; \
 	if [ $$DYLIBS_MISSING -eq 1 ]; then \
 		echo "  Note: Package will be created but may be incomplete without dylibs."; \
@@ -575,6 +590,11 @@ package-macos-arm64: $(OUTPUT_DIR)/$(PROJECT_NAME)-macos-arm64
 		install_name_tool -change "/opt/homebrew/lib/libbass.dylib" "@executable_path/libbass.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
 		install_name_tool -change "/usr/local/lib/libbass.dylib" "@executable_path/libbass.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
 	fi; \
+	if [ -f "$$PACKAGE_DIR/$$PACKAGE_NAME/libsoxr.dylib" ]; then \
+		install_name_tool -change "@rpath/libsoxr.dylib" "@executable_path/libsoxr.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
+		install_name_tool -change "/opt/homebrew/lib/libsoxr.dylib" "@executable_path/libsoxr.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
+		install_name_tool -change "/usr/local/lib/libsoxr.dylib" "@executable_path/libsoxr.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
+	fi; \
 	echo "  Copying data files..."; \
 	cp -r data/* $$PACKAGE_DIR/$$PACKAGE_NAME/data/ 2>/dev/null || true; \
 	if [ -f "license.txt" ]; then \
@@ -587,11 +607,11 @@ package-macos-arm64: $(OUTPUT_DIR)/$(PROJECT_NAME)-macos-arm64
 	rm -rf $$PACKAGE_DIR; \
 	echo "Package created: $$ZIP_FILE"
 
-package-macos-x86: $(OUTPUT_DIR)/$(PROJECT_NAME)-macos-x86
+package-macos-x86: $(BIN_DIR)/$(PROJECT_NAME)-macos-x86
 	@echo "Packaging $(PROJECT_NAME) for macOS x86..."
 	@PACKAGE_DIR="$(BIN_DIR)/package-macos-x86"; \
 	PACKAGE_NAME="$(PROJECT_NAME)-macos-x86"; \
-	if [ ! -f "$(OUTPUT_DIR)/$(PROJECT_NAME)-macos-x86" ]; then \
+	if [ ! -f "$(BIN_DIR)/$(PROJECT_NAME)-macos-x86" ]; then \
 		echo "Error: Binary not found. Build it first with: make TARGET=macos-x86 release"; \
 		exit 1; \
 	fi; \
@@ -599,23 +619,27 @@ package-macos-x86: $(OUTPUT_DIR)/$(PROJECT_NAME)-macos-x86
 	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME; \
 	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME/data; \
 	echo "  Copying binary..."; \
-	cp $(OUTPUT_DIR)/$(PROJECT_NAME)-macos-x86 $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse; \
+	cp $(BIN_DIR)/$(PROJECT_NAME)-macos-x86 $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse; \
 	chmod +x $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse; \
 	echo "  Copying dylibs..."; \
 	DYLIBS_MISSING=0; \
-	if [ ! -f "libbass.dylib" ]; then \
-		echo "  Warning: libbass.dylib not found. Download macOS x86 version from https://www.un4seen.com/"; \
+	if [ ! -f "$(BIN_DIR)/libbass.dylib" ]; then \
+		echo "  Warning: libbass.dylib not found in $(BIN_DIR). Download macOS x86 version from https://www.un4seen.com/"; \
 		DYLIBS_MISSING=1; \
 	else \
-		cp libbass.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+		cp $(BIN_DIR)/libbass.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
 		echo "  ✓ libbass.dylib"; \
 	fi; \
-	if [ ! -f "libSDL2.dylib" ]; then \
-		echo "  Warning: libSDL2.dylib not found. Install via: brew install sdl2, then copy from /usr/local/lib/"; \
+	if [ ! -f "$(BIN_DIR)/libSDL2.dylib" ]; then \
+		echo "  Warning: libSDL2.dylib not found in $(BIN_DIR). Install via: brew install sdl2, then copy from /usr/local/lib/"; \
 		DYLIBS_MISSING=1; \
 	else \
-		cp libSDL2.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+		cp $(BIN_DIR)/libSDL2.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
 		echo "  ✓ libSDL2.dylib"; \
+	fi; \
+	if [ -f "$(BIN_DIR)/libsoxr.dylib" ]; then \
+		cp $(BIN_DIR)/libsoxr.dylib $$PACKAGE_DIR/$$PACKAGE_NAME/; \
+		echo "  ✓ libsoxr.dylib"; \
 	fi; \
 	if [ $$DYLIBS_MISSING -eq 1 ]; then \
 		echo "  Note: Package will be created but may be incomplete without dylibs."; \
@@ -628,6 +652,10 @@ package-macos-x86: $(OUTPUT_DIR)/$(PROJECT_NAME)-macos-x86
 	if [ -f "$$PACKAGE_DIR/$$PACKAGE_NAME/libbass.dylib" ]; then \
 		install_name_tool -change "@rpath/libbass.dylib" "@executable_path/libbass.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
 		install_name_tool -change "/usr/local/lib/libbass.dylib" "@executable_path/libbass.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
+	fi; \
+	if [ -f "$$PACKAGE_DIR/$$PACKAGE_NAME/libsoxr.dylib" ]; then \
+		install_name_tool -change "@rpath/libsoxr.dylib" "@executable_path/libsoxr.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
+		install_name_tool -change "/usr/local/lib/libsoxr.dylib" "@executable_path/libsoxr.dylib" $$PACKAGE_DIR/$$PACKAGE_NAME/Propulse 2>/dev/null || true; \
 	fi; \
 	echo "  Copying data files..."; \
 	cp -r data/* $$PACKAGE_DIR/$$PACKAGE_NAME/data/ 2>/dev/null || true; \
