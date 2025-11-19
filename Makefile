@@ -456,6 +456,7 @@ help:
 	@echo "  make package-windows-x64      # Create Windows x64 ZIP package"
 	@echo "  make package-macos-arm64      # Create macOS ARM64 ZIP package"
 	@echo "  make package-macos-x86        # Create macOS x86 ZIP package"
+	@echo "  make package-all-targets      # Package all targets"
 	@echo ""
 	@echo "Requirements:"
 	@echo "  - FreePascal Compiler (fpc) 3.2+"
@@ -640,4 +641,12 @@ package-macos-x86: $(OUTPUT_DIR)/$(PROJECT_NAME)-macos-x86
 	rm -rf $$PACKAGE_DIR; \
 	echo "Package created: $$ZIP_FILE"
 
-.PHONY: all release debug clean distclean clean-all-targets all-targets all-targets-debug help help-targets fix-dylib-paths package-windows-x64 package-macos-arm64 package-macos-x86
+# Package all targets
+package-all-targets:
+	@echo "Packaging all targets..."
+	@$(MAKE) package-windows-x64
+	@$(MAKE) package-macos-arm64
+	@$(MAKE) package-macos-x86
+	@echo "All targets packaged!"
+
+.PHONY: all release debug clean distclean clean-all-targets all-targets all-targets-debug help help-targets fix-dylib-paths package-windows-x64 package-macos-arm64 package-macos-x86 package-all-targets
