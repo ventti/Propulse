@@ -1,0 +1,17 @@
+# Commit message guidelines
+#
+# - Use lowercase
+# - Use present tense imperative (add, fix, update, improve, etc.)
+# - Be concise and descriptive
+# - No period at the end
+# - Use colon for additional detail if needed (e.g., "improve orderlist: show dots...")
+#
+# Examples:
+#   add undo/redo system to sample editor
+#   toggle volume and effect editing together with comma key
+#   extend undo/redo to orderlist and restore cursor position
+#   improve orderlist: show dots for unused entries and auto-expand on input
+#   fix soxr detection on macOS by preventing automatic disable
+#
+# <type your commit message here>
+

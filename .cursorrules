@@ -1,0 +1,51 @@
+# Cursor Rules for Propulse Tracker
+
+## Commit Message Conventions
+
+When making commits, follow these rules:
+
+1. **Use lowercase** - All commit messages should be in lowercase
+2. **Present tense imperative** - Use verbs like "add", "fix", "update", "improve", "extend", "toggle", "remove", etc.
+3. **Be concise and descriptive** - Clearly describe what the commit does
+4. **No period at the end** - Do not end commit messages with a period
+5. **Optional colon for detail** - Use a colon to add detail when helpful (e.g., "improve orderlist: show dots...")
+
+### Examples
+
+Good commit messages:
+- `add undo/redo system to sample editor`
+- `toggle volume and effect editing together with comma key`
+- `extend undo/redo to orderlist and restore cursor position`
+- `improve orderlist: show dots for unused entries and auto-expand on input`
+- `fix soxr detection on macOS by preventing automatic disable`
+- `update version to 0.10.0 and change URL to github`
+- `remove windows-x86 and linux-x86 support`
+
+Bad commit messages:
+- `Added undo/redo system` (wrong tense, capitalized)
+- `Fixed bug.` (capitalized, has period)
+- `Update Makefile` (too vague)
+
+## Code Style
+
+- Follow Pascal/FreePascal conventions
+- Use consistent indentation (spaces or tabs as per existing code)
+- Comment complex logic
+- Keep functions focused and reasonably sized
+
+## File Organization
+
+- Source files in `src/`
+- Documentation in `docs/`
+- Build artifacts should not be committed (see `.gitignore`)
+- Libraries in `lib/` are committed despite `.gitignore` (as per project requirements)
+
+## Atomic Commits
+
+- Make atomic commits - one logical change per commit
+- Split large changes into multiple commits when appropriate
+- Group related changes together
+- Follow the existing commit style in the repository
+
+See `COMMIT_CONVENTIONS.md` for more details.
+
