@@ -791,6 +791,7 @@ end;
 procedure TWindow.OnKeyDown(var Key: Integer; Shift: TShiftState);
 var
 	InModal: Boolean;
+	KeyID: Word;
 begin
 	if (CurrentScreen = nil) then Exit;
 
@@ -802,7 +803,31 @@ begin
 
 	InModal := InModalDialog;
 
-	case GlobalKeyNames(Shortcuts.Find(GlobalKeys, Key, Shift))	of
+	// Direct check for Shift-F8 to ensure it's handled correctly
+	if (Key = SDLK_F8) and (ssShift in Shift) and (not InModal) then
+	begin
+		if (Module.PlayMode <> PLAY_STOPPED) then
+		begin
+			// Shift-F8: keep current playback position
+			CurrentPattern := Module.PlayPos.Pattern;
+			PatternEditor.Cursor.Row := Module.PlayPos.Row;
+			OrderList.Cursor.Y := Module.PlayPos.Order;
+			Module.Stop;
+			PlayTimeCounter := 0;
+			PatternEditor.ValidateCursor;
+			Editor.UpdateInfoLabels;
+			if CurrentScreen = Editor then
+			begin
+				PatternEditor.Paint;
+				OrderList.Paint;
+			end;
+			Key := 0;
+			Exit;
+		end;
+	end;
+
+	KeyID := Shortcuts.Find(GlobalKeys, Key, Shift);
+	case GlobalKeyNames(KeyID)	of
 
 		keyNONE:
 			Exit;
@@ -852,7 +877,13 @@ begin
 			if not InModal then
 			begin
 				if Module.PlayMode = PLAY_STOPPED then
+				begin
+					PlaybackStartPos.Pattern := CurrentPattern;
+					PlaybackStartPos.Row := PatternEditor.Cursor.Row;
+					PlaybackStartPos.Channel := PatternEditor.Cursor.Channel;
+					PlaybackStartPos.Order := OrderList.Cursor.Y;
 					Module.Play;
+				end;
 				ChangeScreen(TCWEScreen(Editor));
 				FollowPlayback := True;
 				PlayTimeCounter := 0;
@@ -861,6 +892,10 @@ begin
 		keyPlaybackPattern:
 			if not InModal then
 			begin
+				PlaybackStartPos.Pattern := CurrentPattern;
+				PlaybackStartPos.Row := PatternEditor.Cursor.Row;
+				PlaybackStartPos.Channel := PatternEditor.Cursor.Channel;
+				PlaybackStartPos.Order := OrderList.Cursor.Y;
 				FollowPlayback := False;
 				Module.PlayPattern(CurrentPattern);
 				PlayTimeCounter := 0;
@@ -877,8 +912,56 @@ begin
 		keyPlaybackStop:
 			if not InModal then
 			begin
-				Module.Stop;
-				PlayTimeCounter := 0;
+				if ssShift in Shift then
+				begin
+					// Shift-F8: keep current playback position
+					if (Module.PlayMode <> PLAY_STOPPED) then
+					begin
+						// Save current position before stopping
+						CurrentPattern := Module.PlayPos.Pattern;
+						PatternEditor.Cursor.Row := Module.PlayPos.Row;
+						OrderList.Cursor.Y := Module.PlayPos.Order;
+						Module.Stop;
+						PlayTimeCounter := 0;
+						PatternEditor.ValidateCursor;
+						Editor.UpdateInfoLabels;
+						if CurrentScreen = Editor then
+						begin
+							PatternEditor.Paint;
+							OrderList.Paint;
+						end;
+					end
+					else
+					begin
+						Module.Stop;
+						PlayTimeCounter := 0;
+					end;
+				end
+				else
+				begin
+					// F8: restore start position
+					if (Module.PlayMode <> PLAY_STOPPED) then
+					begin
+						Module.Stop;
+						PlayTimeCounter := 0;
+						CurrentPattern := PlaybackStartPos.Pattern;
+						PatternEditor.Cursor.Row := PlaybackStartPos.Row;
+						PatternEditor.Cursor.Channel := PlaybackStartPos.Channel;
+						OrderList.Cursor.Y := PlaybackStartPos.Order;
+						PatternEditor.ValidateCursor;
+						Editor.UpdateInfoLabels;
+						if CurrentScreen = Editor then
+						begin
+							PatternEditor.Paint;
+							OrderList.Paint;
+						end;
+					end
+					else
+					begin
+						Module.Stop;
+						PlayTimeCounter := 0;
+					end;
+				end;
 			end;
 
 		keyScreenLoad:
@@ -1511,7 +1594,7 @@ begin
 		Bind(keyPlaybackSong, 			'Playback.Song', 			'F5');
 		Bind(keyPlaybackPattern, 		'Playback.Pattern', 		'F6');
 		Bind(keyPlaybackPlayFrom, 		'Playback.PlayFrom', 		'F7');
-		Bind(keyPlaybackStop, 			'Playback.Stop', 			'F8');
+		Bind(keyPlaybackStop, 			'Playback.Stop', 			['F8', 'Shift+F8']);
 		Bind(keyPlaybackPrevPattern, 	'Playback.PrevPattern', 	'Ctrl+Left');
 		Bind(keyPlaybackNextPattern, 	'Playback.NextPattern', 	'Ctrl+Right');
 		Bind(keySongLength, 			'Song.Length', 				'Ctrl+P');

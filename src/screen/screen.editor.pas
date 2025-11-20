@@ -1165,6 +1165,10 @@ begin
 
 	if Key = SDLK_F7 then
 	begin
+		PlaybackStartPos.Pattern := CurrentPattern;
+		PlaybackStartPos.Row := PatternEditor.Cursor.Row;
+		PlaybackStartPos.Channel := PatternEditor.Cursor.Channel;
+		PlaybackStartPos.Order := Cursor.Y;
 		Module.Play(Cursor.Y, 0);
 		Exit;
 	end;

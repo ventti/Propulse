@@ -1475,6 +1475,13 @@ begin
 	//
 	if Key = SDLK_F7 then //keyPlaybackPlayFrom
 	begin
+		PlaybackStartPos.Pattern := CurrentPattern;
+		PlaybackStartPos.Row := Cursor.Row;
+		PlaybackStartPos.Channel := Cursor.Channel;
+		if Assigned(OrderList) then
+			PlaybackStartPos.Order := OrderList.Cursor.Y
+		else
+			PlaybackStartPos.Order := 0;
 		o := -1;
 		for i := 0 to Module.Info.OrderCount-1 do
 			if Module.OrderList[i] = CurrentPattern then

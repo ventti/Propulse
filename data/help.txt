@@ -25,7 +25,8 @@
   F6                Play current pattern
   Shift-F6          Play song from current order
   F7                Play from current row
-  F8                Stop playback
+  F8                Stop playback and restore cursor to start position
+  Shift-F8          Stop playback and keep cursor at current position
   F9                Load module (also Ctrl-L, Ctrl-O)
   F10               Save module (also Ctrl-W)
   F11               Orderlist

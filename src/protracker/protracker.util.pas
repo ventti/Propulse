@@ -164,9 +164,17 @@ type
 	TTextVals = array [0..255] of AnsiString;
 	PTextVals = ^TTextVals;
 
+	TPlaybackStartPosition = record
+		Pattern: Byte;
+		Row: Byte;
+		Channel: Byte;
+		Order: Byte;
+	end;
+
 var
 	AppPath, DataPath, ConfigPath: String;
 	Locked, FollowPlayback: Boolean;
+	PlaybackStartPos: TPlaybackStartPosition;
 	Options: TPoroTrackerConfiguration;
 	ConfigManager: TConfigurationManager;
 	TextVals, TextVals3, HexVals: TTextVals;
