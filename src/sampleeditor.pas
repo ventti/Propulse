@@ -3,7 +3,7 @@ unit SampleEditor;
 interface
 
 uses
-	{Types, }Classes, Math,
+	{Types, }Classes, Math, SysUtils,
 	CWE.Core,
 	Screen.Samples, SampleView;
 
@@ -50,9 +50,82 @@ type
 		WAVE_TRIANGLE,
 		WAVE_NOISE);
 
+	// Undo system types
+	TSampleUndoActionType = (
+		uaDelete,		// Delete operation
+		uaPaste,		// Paste operation
+		uaMixPaste,		// Mix paste operation
+		uaCrop,			// Crop operation
+		uaAmplify,		// Amplify operation
+		uaFadeIn,		// Fade in operation
+		uaFadeOut,		// Fade out operation
+		uaCrossfade,	// Crossfade operation
+		uaFilter,		// Filter operation
+		uaReverse,		// Reverse operation
+		uaInvert,		// Invert operation
+		uaResample,		// Resample operation
+		uaUpsample,		// Upsample operation
+		uaDownsample,	// Downsample operation
+		uaGenerate,		// Generate operation
+		uaPreLoopCut,	// Pre-loop cut operation
+		uaPostLoopCut,	// Post-loop cut operation
+		uaClear,		// Clear sample operation
+		uaCopy,			// Copy from another sample
+		uaSwap,			// Swap samples operation
+		uaReplace,		// Replace sample operation
+		uaInsertSlot,	// Insert sample slot
+		uaDeleteSlot,	// Delete sample slot
+		uaSetLoop,		// Set loop points
+		uaSetVolume,	// Set volume
+		uaSetFinetune,	// Set finetune
+		uaSetName		// Set sample name
+	);
+
+	TSampleUndoEntry = record
+		ActionType: TSampleUndoActionType;
+		SampleIndex: Byte;
+		BackupFilename: AnsiString;
+		Description: AnsiString;
+		// Cursor positions for restoring after undo/redo
+		SelectionL, SelectionR: Integer;
+		ViewportL, ViewportR: Integer;
+		// For metadata changes, store old values
+		OldName: AnsiString;
+		OldFinetune: ShortInt;
+		OldVolume: Byte;
+		OldLoopStart, OldLoopLength: Cardinal;
+		OldTempLoopStart, OldTempLoopLength: Cardinal;
+		OldLoopEnabled: Boolean; // For loop toggle
+	end;
+
 	TSampleEditor = class
+	private
+		UndoBuffer: array[0..99] of TSampleUndoEntry;
+		UndoIndex: Integer;
+		UndoCount: Integer;
+		RedoCount: Integer;
+		UndoInProgress: Boolean;
+		TempDir: AnsiString;
+		TempFiles: TStringList;
+
+		procedure	ClearRedo;
+		function	SaveSampleBackup(SampleIndex: Byte): AnsiString;
+		function	RestoreSampleBackup(const Filename: AnsiString; SampleIndex: Byte): Boolean;
+		procedure	CleanupTempFiles;
+		procedure	InitializeUndoSystem;
 	public
 		Waveform: 	TSampleView;
+
+		constructor Create;
+		destructor  Destroy; override;
+
+		function	CreateUndoEntry(ActionType: TSampleUndoActionType; SampleIndex: Byte; const Description: AnsiString): TSampleUndoEntry;
+		procedure	AddUndoEntry(const Entry: TSampleUndoEntry);
+		procedure	Undo;
+		procedure	Redo;
+		function	CanUndo: Boolean;
+		function	CanRedo: Boolean;
+		property	IsUndoInProgress: Boolean read UndoInProgress;
 
 		function	GetSelection(var X1, X2: Integer): Boolean;
 		function	HasSelection: Boolean; inline;
@@ -107,7 +180,8 @@ uses
 	ProTracker.Util,
 	ProTracker.Player,
 	ProTracker.Sample,
-	FloatSampleEffects;
+	FloatSampleEffects,
+	FileStreamEx;
 
 var
 	Clipbrd: array of Byte;
@@ -274,10 +348,17 @@ end;
 procedure TSampleEditor.Delete;
 var
 	X1, X2, L: Integer;
+	UndoEntry: TSampleUndoEntry;
 begin
 	if HasSelection then
 	with Waveform do
 	begin
+		if not UndoInProgress and (Sample <> nil) then
+		begin
+			UndoEntry := CreateUndoEntry(uaDelete, Sample.Index, 'Delete selection');
+			AddUndoEntry(UndoEntry);
+		end;
+		
 		GetSelection(X1, X2);
 
 		L := Sample.ByteLength - X2;
@@ -323,9 +404,16 @@ begin
 end;
 
 procedure TSampleEditor.Cut;
+var
+	UndoEntry: TSampleUndoEntry;
 begin
 	if HasSelection then
 	begin
+		if not UndoInProgress and (Waveform.Sample <> nil) then
+		begin
+			UndoEntry := CreateUndoEntry(uaDelete, Waveform.Sample.Index, 'Cut selection');
+			AddUndoEntry(UndoEntry);
+		end;
 		Module.Stop;
 		Copy;
 		Delete;
@@ -403,10 +491,17 @@ procedure TSampleEditor.Paste;
 var
 	L: Integer;
 	B: Boolean;
+	UndoEntry: TSampleUndoEntry;
 begin
 	with Waveform do
 	begin
 		if not HasSample then Exit;
+
+		if not UndoInProgress and (Sample <> nil) then
+		begin
+			UndoEntry := CreateUndoEntry(uaPaste, Sample.Index, 'Paste');
+			AddUndoEntry(UndoEntry);
+		end;
 
 		Module.Stop;
 
@@ -450,10 +545,17 @@ end;
 procedure TSampleEditor.MixPaste;
 var
 	X, X1, X2, S: Integer;
+	UndoEntry: TSampleUndoEntry;
 begin
 	with Waveform do
 	begin
 		if not HasSample then Exit;
+
+		if not UndoInProgress and (Sample <> nil) then
+		begin
+			UndoEntry := CreateUndoEntry(uaMixPaste, Sample.Index, 'Mix paste');
+			AddUndoEntry(UndoEntry);
+		end;
 
 		if Length(Clipbrd) < 1 then
 		begin
@@ -499,10 +601,17 @@ end;
 procedure TSampleEditor.Crop;
 var
 	X1, X2: Integer;
+	UndoEntry: TSampleUndoEntry;
 begin
 	if HasSelection then
 	with Waveform do
 	begin
+		if not UndoInProgress and (Sample <> nil) then
+		begin
+			UndoEntry := CreateUndoEntry(uaCrop, Sample.Index, 'Crop');
+			AddUndoEntry(UndoEntry);
+		end;
+		
 		GetSelection(X1, X2);
 		Module.Stop;
 
@@ -542,9 +651,16 @@ end;
 procedure TSampleEditor.FadeIn;
 var
 	X1, X2, x, L: Integer;
+	UndoEntry: TSampleUndoEntry;
 begin
 	if GetSelection(X1, X2) then
 	begin
+		if not UndoInProgress and (Waveform.Sample <> nil) then
+		begin
+			UndoEntry := CreateUndoEntry(uaFadeIn, Waveform.Sample.Index, 'Fade in');
+			AddUndoEntry(UndoEntry);
+		end;
+		
 		L := X2 - X1;
 		for x := 0 to L-1 do
 			ShortInt(Waveform.Sample.Data[x+X1]) :=
@@ -556,9 +672,16 @@ end;
 procedure TSampleEditor.FadeOut;
 var
 	X1, X2, x, L: Integer;
+	UndoEntry: TSampleUndoEntry;
 begin
 	if GetSelection(X1, X2) then
 	begin
+		if not UndoInProgress and (Waveform.Sample <> nil) then
+		begin
+			UndoEntry := CreateUndoEntry(uaFadeOut, Waveform.Sample.Index, 'Fade out');
+			AddUndoEntry(UndoEntry);
+		end;
+		
 		L := X2 - X1;
 		for x := 0 to L-1 do
 			ShortInt(Waveform.Sample.Data[x+X1]) :=
@@ -571,11 +694,18 @@ procedure TSampleEditor.CrossFade;
 var
 	h, i, e, X1, X2: Integer;
 	V: Byte;
+	UndoEntry: TSampleUndoEntry;
 begin
 	with Waveform do
 	begin
 		if (not HasSample) or (IsEmptySample(Sample)) then Exit;
 		if not GetSelection(X1, X2) then Exit;
+
+		if not UndoInProgress and (Sample <> nil) then
+		begin
+			UndoEntry := CreateUndoEntry(uaCrossfade, Sample.Index, 'Crossfade');
+			AddUndoEntry(UndoEntry);
+		end;
 
 		e := X2-1;
 		h := X1 + ((X2 - X1) div 2);
@@ -606,9 +736,16 @@ var
 	buf: TFloatArray;
 	Sam: TSample;
 	i: Integer;
+	UndoEntry: TSampleUndoEntry;
 begin
 	Sam := GetCurrentSample;
 	if Sam = nil then Exit;
+
+	if not UndoInProgress then
+	begin
+		UndoEntry := CreateUndoEntry(uaFilter, Sam.Index, 'Filter');
+		AddUndoEntry(UndoEntry);
+	end;
 
 	Sam.ValidateCoords(X1{%H-}, X2{%H-});
 	Sam.GetFloatData(X1, X2, buf{%H-});
@@ -664,11 +801,18 @@ var
 	i, X1, X2: Integer;
 	Sam: TSample;
 	D: Single;
+	UndoEntry: TSampleUndoEntry;
 begin
 	if GetSelection(X1, X2) then
 	begin
 		Sam := GetCurrentSample;
 		if Sam = nil then Exit;
+
+		if not UndoInProgress then
+		begin
+			UndoEntry := CreateUndoEntry(uaFilter, Sam.Index, 'Decrease treble');
+			AddUndoEntry(UndoEntry);
+		end;
 		Sam.ValidateCoords(X1, X2);
 
 		for i := X1 to X2-1 do
@@ -687,11 +831,18 @@ var
 	i, X1, X2: Integer;
 	Sam: TSample;
 	tmp16_1, tmp16_2, tmp16_3: SmallInt;
+	UndoEntry: TSampleUndoEntry;
 begin
 	if GetSelection(X1, X2) then
 	begin
 		Sam := GetCurrentSample;
 		if Sam = nil then Exit;
+
+		if not UndoInProgress then
+		begin
+			UndoEntry := CreateUndoEntry(uaFilter, Sam.Index, 'Increase treble');
+			AddUndoEntry(UndoEntry);
+		end;
 		Sam.ValidateCoords(X1, X2);
 
 		tmp16_3 := 0;
@@ -713,9 +864,16 @@ end;
 procedure TSampleEditor.Reverse;
 var
 	X1, X2: Integer;
+	UndoEntry: TSampleUndoEntry;
 begin
 	if GetSelection(X1, X2) then
 	begin
+		if not UndoInProgress and (Waveform.Sample <> nil) then
+		begin
+			UndoEntry := CreateUndoEntry(uaReverse, Waveform.Sample.Index, 'Reverse');
+			AddUndoEntry(UndoEntry);
+		end;
+		
 		Waveform.Sample.Reverse(X1, X2);
 		Module.SetModified;
 	end;
@@ -724,9 +882,16 @@ end;
 procedure TSampleEditor.Invert;
 var
 	X1, X2: Integer;
+	UndoEntry: TSampleUndoEntry;
 begin
 	if GetSelection(X1, X2) then
 	begin
+		if not UndoInProgress and (Waveform.Sample <> nil) then
+		begin
+			UndoEntry := CreateUndoEntry(uaInvert, Waveform.Sample.Index, 'Invert');
+			AddUndoEntry(UndoEntry);
+		end;
+		
 		Waveform.Sample.Invert(X1, X2);
 		Module.SetModified;
 	end;
@@ -739,14 +904,30 @@ begin
 end;
 
 procedure TSampleEditor.Upsample;
+var
+	UndoEntry: TSampleUndoEntry;
 begin
+	if not UndoInProgress and (Waveform.Sample <> nil) then
+	begin
+		UndoEntry := CreateUndoEntry(uaUpsample, Waveform.Sample.Index, 'Upsample');
+		AddUndoEntry(UndoEntry);
+	end;
+	
 	Module.Stop;
 	Waveform.Sample.Upsample;
 	Module.SetModified;
 end;
 
 procedure TSampleEditor.Downsample;
+var
+	UndoEntry: TSampleUndoEntry;
 begin
+	if not UndoInProgress and (Waveform.Sample <> nil) then
+	begin
+		UndoEntry := CreateUndoEntry(uaDownsample, Waveform.Sample.Index, 'Downsample');
+		AddUndoEntry(UndoEntry);
+	end;
+	
 	Module.Stop;
 	Waveform.Sample.Downsample;
 	Module.SetModified;
@@ -767,8 +948,15 @@ var
 	position_in_period_delta: Single;
 	Data: Single;
 	X, i: Integer;
+	UndoEntry: TSampleUndoEntry;
 begin
 	if not HasSample then Exit;
+
+	if not UndoInProgress and (Waveform.Sample <> nil) then
+	begin
+		UndoEntry := CreateUndoEntry(uaGenerate, Waveform.Sample.Index, 'Generate audio');
+		AddUndoEntry(UndoEntry);
+	end;
 
 	X := Max(Waveform.Selection.L, 0);
 	if not MakeRoom(X, numsamples) then
@@ -812,13 +1000,512 @@ begin
 	Module.SetModified;
 end;
 
+// ==========================================================================
+// Undo/Redo System
+// ==========================================================================
+
+procedure TSampleEditor.ClearRedo;
+begin
+	RedoCount := 0;
+end;
+
+function TSampleEditor.CreateUndoEntry(ActionType: TSampleUndoActionType; SampleIndex: Byte; const Description: AnsiString): TSampleUndoEntry;
+var
+	Sample: TSample;
+begin
+	Result.ActionType := ActionType;
+	Result.SampleIndex := SampleIndex;
+	Result.Description := Description;
+	Result.BackupFilename := '';
+	Result.OldName := '';
+	Result.OldFinetune := 0;
+	Result.OldVolume := 0;
+	Result.OldLoopStart := 0;
+	Result.OldLoopLength := 0;
+	Result.OldTempLoopStart := 0;
+	Result.OldTempLoopLength := 0;
+	Result.OldLoopEnabled := False;
+	
+	// Store current cursor/viewport positions
+	if Waveform <> nil then
+	begin
+		Result.SelectionL := Waveform.Selection.L;
+		Result.SelectionR := Waveform.Selection.R;
+		Result.ViewportL := Waveform.Viewport.L;
+		Result.ViewportR := Waveform.Viewport.R;
+	end
+	else
+	begin
+		Result.SelectionL := 0;
+		Result.SelectionR := 0;
+		Result.ViewportL := 0;
+		Result.ViewportR := 0;
+	end;
+	
+	// Store current metadata values before modification
+	if (SampleIndex >= 1) and (SampleIndex <= 31) then
+	begin
+		Sample := Module.Samples[SampleIndex - 1];
+		if Sample <> nil then
+		begin
+			case ActionType of
+				uaSetName:
+					// OldName should already be set by caller, but ensure it's set
+					if Result.OldName = '' then
+						Result.OldName := Sample.GetName;
+				uaSetFinetune:
+					Result.OldFinetune := Sample.Finetune;
+				uaSetVolume:
+					Result.OldVolume := Sample.Volume;
+				uaSetLoop:
+				begin
+					Result.OldLoopStart := Sample.LoopStart;
+					Result.OldLoopLength := Sample.LoopLength;
+					Result.OldTempLoopStart := Sample.TempLoopStart;
+					Result.OldTempLoopLength := Sample.TempLoopLength;
+					Result.OldLoopEnabled := Sample.IsLooped;
+				end;
+			end;
+		end;
+	end;
+end;
+
+procedure TSampleEditor.AddUndoEntry(const Entry: TSampleUndoEntry);
+var
+	BackupFile: AnsiString;
+begin
+	if UndoInProgress then Exit;
+	
+	// Clear redo stack when new action is performed
+	ClearRedo;
+	
+	// For name changes, we don't need file backups (name is stored in OldName)
+	// For other operations, save sample backup to temp file
+	if Entry.ActionType <> uaSetName then
+	begin
+		BackupFile := SaveSampleBackup(Entry.SampleIndex);
+		if BackupFile = '' then Exit; // Failed to save backup
+	end
+	else
+		BackupFile := '';
+	
+	// Move forward in circular buffer
+	Inc(UndoIndex);
+	if UndoIndex >= 100 then
+		UndoIndex := 0;
+	
+	// If buffer is full, we're overwriting oldest entry
+	if UndoCount < 100 then
+		Inc(UndoCount);
+	
+	// Store the entry with backup filename
+	UndoBuffer[UndoIndex] := Entry;
+	UndoBuffer[UndoIndex].BackupFilename := BackupFile;
+end;
+
+function TSampleEditor.SaveSampleBackup(SampleIndex: Byte): AnsiString;
+var
+	Sample: TSample;
+	Filename: AnsiString;
+	Counter: Integer;
+begin
+	Result := '';
+	if (SampleIndex < 1) or (SampleIndex > 31) then Exit;
+	
+	Sample := Module.Samples[SampleIndex - 1];
+	if Sample = nil then Exit;
+	if Sample.IsEmpty then Exit;
+	
+	// Generate unique filename
+	Counter := 0;
+	repeat
+		Filename := TempDir + Format('propulse_sample_%d_%d_%d.raw', [SampleIndex, Trunc(Now * 86400 * 1000) mod 1000000, Counter]);
+		Inc(Counter);
+	until not FileExists(Filename) or (Counter > 1000);
+	
+	if Counter > 1000 then Exit; // Failed to generate unique filename
+	
+	// Save sample data as raw file
+	try
+		with TFileStreamEx.Create(Filename, fmCreate) do
+		try
+			Write(Sample.Data[0], Sample.ByteLength);
+		finally
+			Free;
+		end;
+		
+		// Store filename for cleanup
+		TempFiles.Add(Filename);
+		Result := Filename;
+	except
+		Result := '';
+	end;
+end;
+
+function TSampleEditor.RestoreSampleBackup(const Filename: AnsiString; SampleIndex: Byte): Boolean;
+var
+	Sample: TSample;
+	FileSize: Int64;
+begin
+	Result := False;
+	if (SampleIndex < 1) or (SampleIndex > 31) then Exit;
+	if not FileExists(Filename) then Exit;
+	
+	Sample := Module.Samples[SampleIndex - 1];
+	if Sample = nil then Exit;
+	
+	try
+		with TFileStreamEx.Create(Filename, fmOpenRead) do
+		try
+			FileSize := Size;
+			if FileSize > 0 then
+			begin
+				Sample.Resize(FileSize);
+				Read(Sample.Data[0], FileSize);
+				Sample.Validate;
+				Result := True;
+			end;
+		finally
+			Free;
+		end;
+	except
+		Result := False;
+	end;
+end;
+
+function TSampleEditor.CanUndo: Boolean;
+begin
+	Result := (UndoCount > 0) and (UndoIndex >= 0);
+end;
+
+function TSampleEditor.CanRedo: Boolean;
+begin
+	// Can redo if there are entries after the current undo position
+	Result := (RedoCount > 0) and (UndoCount + RedoCount <= 100);
+end;
+
+procedure TSampleEditor.Undo;
+var
+	Entry: TSampleUndoEntry;
+	CurrentName: AnsiString;
+	CurrentFinetune: ShortInt;
+	CurrentVolume: Byte;
+	CurrentLoopStart, CurrentLoopLength: Cardinal;
+	CurrentTempLoopStart, CurrentTempLoopLength: Cardinal;
+	CurrentLoopEnabled: Boolean;
+	Sample: TSample;
+begin
+	if not CanUndo then
+	begin
+		Log('Nothing to undo.');
+		Exit;
+	end;
+	
+	Entry := UndoBuffer[UndoIndex];
+	UndoInProgress := True;
+	
+	try
+		// Handle metadata-only changes separately (they don't need file backups)
+		if Entry.ActionType in [uaSetName, uaSetFinetune, uaSetVolume, uaSetLoop] then
+		begin
+			if (Entry.SampleIndex >= 1) and (Entry.SampleIndex <= 31) then
+			begin
+				Sample := Module.Samples[Entry.SampleIndex - 1];
+				if Sample <> nil then
+				begin
+					case Entry.ActionType of
+						uaSetName:
+						begin
+							// Swap current name with old name
+							CurrentName := Sample.GetName;
+							Sample.SetName(Entry.OldName);
+							// Update entry with current name for redo
+							UndoBuffer[UndoIndex].OldName := CurrentName;
+						end;
+						uaSetFinetune:
+						begin
+							// Swap current finetune with old finetune
+							CurrentFinetune := Sample.Finetune;
+							Sample.Finetune := Entry.OldFinetune;
+							// Update entry with current finetune for redo
+							UndoBuffer[UndoIndex].OldFinetune := CurrentFinetune;
+						end;
+						uaSetVolume:
+						begin
+							// Swap current volume with old volume
+							CurrentVolume := Sample.Volume;
+							Sample.Volume := Entry.OldVolume;
+							// Update entry with current volume for redo
+							UndoBuffer[UndoIndex].OldVolume := CurrentVolume;
+						end;
+						uaSetLoop:
+						begin
+							// Swap current loop points with old loop points
+							CurrentLoopStart := Sample.LoopStart;
+							CurrentLoopLength := Sample.LoopLength;
+							CurrentTempLoopStart := Sample.TempLoopStart;
+							CurrentTempLoopLength := Sample.TempLoopLength;
+							CurrentLoopEnabled := Sample.IsLooped;
+							
+							// Restore old values
+							Sample.LoopStart := Entry.OldLoopStart;
+							Sample.LoopLength := Entry.OldLoopLength;
+							Sample.TempLoopStart := Entry.OldTempLoopStart;
+							Sample.TempLoopLength := Entry.OldTempLoopLength;
+							Sample.UpdateVoice;
+							
+							// Update entry with current values for redo
+							UndoBuffer[UndoIndex].OldLoopStart := CurrentLoopStart;
+							UndoBuffer[UndoIndex].OldLoopLength := CurrentLoopLength;
+							UndoBuffer[UndoIndex].OldTempLoopStart := CurrentTempLoopStart;
+							UndoBuffer[UndoIndex].OldTempLoopLength := CurrentTempLoopLength;
+							UndoBuffer[UndoIndex].OldLoopEnabled := CurrentLoopEnabled;
+						end;
+					end;
+				end;
+			end;
+		end
+		else
+		begin
+			// Restore sample from backup (for data changes)
+			if not RestoreSampleBackup(Entry.BackupFilename, Entry.SampleIndex) then
+			begin
+				Log('Failed to restore sample backup.');
+				Exit;
+			end;
+		end;
+		
+		// Restore cursor/viewport positions
+		if Waveform <> nil then
+		begin
+			Waveform.Selection.SetRange(Entry.SelectionL, Entry.SelectionR, Module.Samples[Entry.SampleIndex - 1]);
+			Waveform.Viewport.SetRange(Entry.ViewportL, Entry.ViewportR, Module.Samples[Entry.SampleIndex - 1]);
+			Waveform.DrawWaveform;
+		end;
+		
+		// Move backwards in undo stack, add to redo
+		Dec(UndoIndex);
+		if UndoIndex < 0 then
+			UndoIndex := 99;
+		Dec(UndoCount);
+		Inc(RedoCount);
+		
+		Log('Undo: ' + Entry.Description);
+		Module.SetModified;
+		
+		if CurrentScreen = SampleScreen then
+		begin
+			// Update waveform if it's showing the affected sample
+			if (SampleScreen.Waveform.Sample <> nil) and 
+			   (SampleScreen.Waveform.Sample.Index = Entry.SampleIndex) then
+			begin
+				SampleScreen.Waveform.DrawWaveform;
+			end;
+			// UpdateSampleInfo already sets Updating flag, so it won't create undo entries
+			SampleScreen.UpdateSampleInfo;
+			// Refresh sample list to show name changes - Paint the whole screen
+			if Entry.ActionType = uaSetName then
+				SampleScreen.Paint;
+		end;
+	finally
+		UndoInProgress := False;
+	end;
+end;
+
+procedure TSampleEditor.Redo;
+var
+	Entry: TSampleUndoEntry;
+	CurrentName: AnsiString;
+	CurrentFinetune: ShortInt;
+	CurrentVolume: Byte;
+	CurrentLoopStart, CurrentLoopLength: Cardinal;
+	CurrentTempLoopStart, CurrentTempLoopLength: Cardinal;
+	CurrentLoopEnabled: Boolean;
+	Sample: TSample;
+begin
+	if not CanRedo then
+	begin
+		Log('Nothing to redo.');
+		Exit;
+	end;
+	
+	// Move forward to get the redo entry
+	Inc(UndoIndex);
+	if UndoIndex >= 100 then
+		UndoIndex := 0;
+	
+	Entry := UndoBuffer[UndoIndex];
+	UndoInProgress := True;
+	
+	try
+		// Handle metadata-only changes separately (they don't need file backups)
+		if Entry.ActionType in [uaSetName, uaSetFinetune, uaSetVolume, uaSetLoop] then
+		begin
+			if (Entry.SampleIndex >= 1) and (Entry.SampleIndex <= 31) then
+			begin
+				Sample := Module.Samples[Entry.SampleIndex - 1];
+				if Sample <> nil then
+				begin
+					case Entry.ActionType of
+						uaSetName:
+						begin
+							// Swap current name with old name (which contains the redo name)
+							CurrentName := Sample.GetName;
+							Sample.SetName(Entry.OldName);
+							// Update entry with current name for next undo
+							UndoBuffer[UndoIndex].OldName := CurrentName;
+						end;
+						uaSetFinetune:
+						begin
+							// Swap current finetune with old finetune (which contains the redo value)
+							CurrentFinetune := Sample.Finetune;
+							Sample.Finetune := Entry.OldFinetune;
+							// Update entry with current finetune for next undo
+							UndoBuffer[UndoIndex].OldFinetune := CurrentFinetune;
+						end;
+						uaSetVolume:
+						begin
+							// Swap current volume with old volume (which contains the redo value)
+							CurrentVolume := Sample.Volume;
+							Sample.Volume := Entry.OldVolume;
+							// Update entry with current volume for next undo
+							UndoBuffer[UndoIndex].OldVolume := CurrentVolume;
+						end;
+						uaSetLoop:
+						begin
+							// Swap current loop points with old loop points (which contain the redo values)
+							CurrentLoopStart := Sample.LoopStart;
+							CurrentLoopLength := Sample.LoopLength;
+							CurrentTempLoopStart := Sample.TempLoopStart;
+							CurrentTempLoopLength := Sample.TempLoopLength;
+							CurrentLoopEnabled := Sample.IsLooped;
+							
+							// Restore redo values
+							Sample.LoopStart := Entry.OldLoopStart;
+							Sample.LoopLength := Entry.OldLoopLength;
+							Sample.TempLoopStart := Entry.OldTempLoopStart;
+							Sample.TempLoopLength := Entry.OldTempLoopLength;
+							Sample.UpdateVoice;
+							
+							// Update entry with current values for next undo
+							UndoBuffer[UndoIndex].OldLoopStart := CurrentLoopStart;
+							UndoBuffer[UndoIndex].OldLoopLength := CurrentLoopLength;
+							UndoBuffer[UndoIndex].OldTempLoopStart := CurrentTempLoopStart;
+							UndoBuffer[UndoIndex].OldTempLoopLength := CurrentTempLoopLength;
+							UndoBuffer[UndoIndex].OldLoopEnabled := CurrentLoopEnabled;
+						end;
+					end;
+				end;
+			end;
+		end
+		else
+		begin
+			// Restore sample from backup (for data changes)
+			if not RestoreSampleBackup(Entry.BackupFilename, Entry.SampleIndex) then
+			begin
+				Log('Failed to restore sample backup.');
+				Exit;
+			end;
+		end;
+		
+		// Restore cursor/viewport positions
+		if Waveform <> nil then
+		begin
+			Waveform.Selection.SetRange(Entry.SelectionL, Entry.SelectionR, Module.Samples[Entry.SampleIndex - 1]);
+			Waveform.Viewport.SetRange(Entry.ViewportL, Entry.ViewportR, Module.Samples[Entry.SampleIndex - 1]);
+			Waveform.DrawWaveform;
+		end;
+		
+		// Move forward in undo stack, remove from redo
+		Inc(UndoCount);
+		Dec(RedoCount);
+		
+		Log('Redo: ' + Entry.Description);
+		Module.SetModified;
+		
+		if CurrentScreen = SampleScreen then
+		begin
+			// Update waveform if it's showing the affected sample
+			if (SampleScreen.Waveform.Sample <> nil) and 
+			   (SampleScreen.Waveform.Sample.Index = Entry.SampleIndex) then
+			begin
+				SampleScreen.Waveform.DrawWaveform;
+			end;
+			// UpdateSampleInfo already sets Updating flag, so it won't create undo entries
+			SampleScreen.UpdateSampleInfo;
+			// Refresh sample list to show name changes - Paint the whole screen
+			if Entry.ActionType = uaSetName then
+				SampleScreen.Paint;
+		end;
+	finally
+		UndoInProgress := False;
+	end;
+end;
+
+procedure TSampleEditor.CleanupTempFiles;
+var
+	i: Integer;
+begin
+	if TempFiles <> nil then
+	begin
+		for i := 0 to TempFiles.Count - 1 do
+		begin
+			if FileExists(TempFiles[i]) then
+			begin
+				try
+					DeleteFile(TempFiles[i]);
+				except
+					// Ignore errors during cleanup
+				end;
+			end;
+		end;
+		TempFiles.Clear;
+	end;
+end;
+
+
+// ==========================================================================
+// Constructor/Destructor
+// ==========================================================================
+
+constructor TSampleEditor.Create;
+begin
+	inherited;
+	InitializeUndoSystem;
+end;
+
+destructor TSampleEditor.Destroy;
+begin
+	CleanupTempFiles;
+	if TempFiles <> nil then
+		TempFiles.Free;
+	inherited;
+end;
+
+procedure TSampleEditor.InitializeUndoSystem;
+begin
+	UndoIndex := -1;
+	UndoCount := 0;
+	RedoCount := 0;
+	UndoInProgress := False;
+	// Get OS-agnostic temp directory
+	TempDir := IncludeTrailingPathDelimiter(GetTempDir) + 'propulse_sample_undo' + PathDelim;
+	ForceDirectories(TempDir);
+	TempFiles := TStringList.Create;
+end;
+
+// ==========================================================================
+// Utility
+// ==========================================================================
+
 initialization
 
 	SampleEdit := TSampleEditor.Create;
 
 finalization
 
-	SampleEdit.Free;
+	if SampleEdit <> nil then
+		SampleEdit.Free;
 
 
 end.

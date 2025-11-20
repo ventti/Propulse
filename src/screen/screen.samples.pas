@@ -70,12 +70,16 @@ type
 		keySampleEqualizer,
 		keySampleFilterLo,
 		keySampleFilterHi,
-		keySampleGenerate
+		keySampleGenerate,
+		keySampleUndo,
+		keySampleRedo
 	);
 
 	TSampleList = class(TCWEControl)
 	private
 		CursorInPlay: Boolean;
+		LastSampleName: AnsiString; // Track name for undo
+		LastSampleIndex: Byte; // Track which sample we're editing
 	const
 		LENGTH_SAMPLETEXT = 22;
 	public
@@ -99,6 +103,7 @@ type
 	TSampleScreen = class(TCWEScreen)
 	private
 		Updating:	Boolean;
+		SliderDragActive: TCWEControl; // Track which slider is currently being dragged
 
 		procedure 	SliderKeyDown(Sender: TCWEControl;
 					var Key: Integer; Shift: TShiftState; var Handled: Boolean);
@@ -117,6 +122,8 @@ type
 		btnLoop:	TCWEButton;
 		Cursor:		TPoint;
 
+		function	KeyDown(var Key: Integer; Shift: TShiftState): Boolean; override;
+		function	MouseUp(Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean; override;
 		procedure 	DialogCallback(ID: Word; Button: TDialogButton;
 					ModalResult: Integer; Data: Variant; Dlg: TCWEDialog);
 		procedure 	ResampleDialog(ShowDialog: Boolean);
@@ -168,14 +175,89 @@ begin
 	Sam := GetCurrentSample;
 	if Sam <> nil then
 	begin
+		// Create undo entry before toggling
+		if not SampleEdit.IsUndoInProgress then
+		begin
+			SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSetLoop, Sam.Index, 'Toggle loop'));
+		end;
 		Sam.EnableLooping(btnLoop.Down);
 		UpdateSampleInfo;
+		Module.SetModified;
 	end;
+end;
+
+function TSampleScreen.KeyDown(var Key: Integer; Shift: TShiftState): Boolean;
+var
+	Scl: SampleListKeyNames;
+	Sc: ControlKeyNames;
+begin
+	// Handle undo/redo globally regardless of focus - check BEFORE routing to controls
+	Scl := SampleListKeyNames(Shortcuts.Find(SampleListKeys, Key, Shift));
+	case Scl of
+		keySampleUndo:
+		begin
+			SampleEdit.Undo;
+			Waveform.DrawWaveform;
+			UpdateSampleInfo;
+			Result := True;
+			Exit;
+		end;
+		keySampleRedo:
+		begin
+			SampleEdit.Redo;
+			Waveform.DrawWaveform;
+			UpdateSampleInfo;
+			Result := True;
+			Exit;
+		end;
+	end;
+	
+	// Handle control navigation keys
+	Sc := ControlKeyNames(Shortcuts.Find(ControlKeys, Key, Shift));
+	case Sc of
+		ctrlkeyNextCtrl:
+		begin
+			BrowseControls(False);
+			Result := True;
+			Exit;
+		end;
+		ctrlkeyPreviousCtrl:
+		begin
+			BrowseControls(True);
+			Result := True;
+			Exit;
+		end;
+	end;
+	
+	// Route other keys to active control
+	if ActiveControl <> nil then
+		Result := ActiveControl.KeyDown(Key, Shift)
+	else
+		Result := False;
+end;
+
+function TSampleScreen.MouseUp(Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean;
+begin
+	// Clear drag tracking when mouse is released
+	SliderDragActive := nil;
+	Result := inherited MouseUp(Button, X, Y, P);
 end;
 
 procedure TSampleScreen.WaveformKeyDown(Sender: TCWEControl;
 	var Key: Integer; Shift: TShiftState; var Handled: Boolean);
+var
+	Scl: SampleListKeyNames;
 begin
+	// Check for undo/redo first - let screen handle them
+	Scl := SampleListKeyNames(Shortcuts.Find(SampleListKeys, Key, Shift));
+	case Scl of
+		keySampleUndo, keySampleRedo:
+		begin
+			Handled := False; // Let screen handle it
+			Exit;
+		end;
+	end;
+	
 	Handled := SampleList.KeyDown(Key, Shift);
 end;
 
@@ -188,7 +270,19 @@ end;
 
 procedure TSampleScreen.SliderKeyDown(Sender: TCWEControl;
 	var Key: Integer; Shift: TShiftState; var Handled: Boolean);
+var
+	Scl: SampleListKeyNames;
 begin
+	// Check for undo/redo first - let screen handle them
+	Scl := SampleListKeyNames(Shortcuts.Find(SampleListKeys, Key, Shift));
+	case Scl of
+		keySampleUndo, keySampleRedo:
+		begin
+			Handled := False; // Let screen handle it
+			Exit;
+		end;
+	end;
+	
 	Handled := True;
 
 	case Key of
@@ -241,6 +335,8 @@ const
 	W = 15;
 begin
 	inherited;
+
+	SliderDragActive := nil; // Initialize drag tracking
 
 	RegisterScreenLayout(Self, 'SampleList');
 
@@ -374,6 +470,8 @@ begin
 		Bind(keySampleClipCopy,	   	'Copy', 			'Ctrl+C');
 		Bind(keySampleClipPaste,   	'Paste', 			'Ctrl+V');
 		Bind(keySampleClipMixPaste,	'MixPaste',			'Ctrl+P');
+		Bind(keySampleUndo,			'Undo',				'Ctrl+Z');
+		Bind(keySampleRedo,			'Redo',				'Ctrl+Y');
 //		Bind(keySampleFadeIn,		'Fade.In', 			0);
 //		Bind(keySampleFadeOut,		'Fade.Out', 		0);
 //		Bind(keySampleCrossfade,	'Crossfade',		0);
@@ -477,6 +575,11 @@ begin
 		ACTION_AMPLIFY_SAMPLE:
 			if Pos >= 0.0 then
 			begin
+				if not SampleEdit.IsUndoInProgress then
+				begin
+					SampleEdit.GetSelection(X1, X2);
+					SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaAmplify, GetCurrentSample.Index, 'Amplify'));
+				end;
 				SampleEdit.GetSelection(X1, X2);
 				GetCurrentSample.Normalize(Max(Pos, 0.01) / 100, X1, X2);
 				Module.SetModified;
@@ -491,11 +594,24 @@ begin
 			end;
 
 		ACTION_RESAMPLE:
+		begin
+			if not SampleEdit.IsUndoInProgress then
+			begin
+				SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaResample, GetCurrentSample.Index, 'Resample'));
+			end;
 			DoResampleAfterDialog;
+		end;
 
 		ACTION_SWAPSAMPLES:
 			if Pos >= 0 then
 			begin
+				if not SampleEdit.IsUndoInProgress then
+				begin
+					// Create undo for both samples being swapped
+					SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSwap, CurrentSample, 'Swap samples'));
+					if Pos+1 <> CurrentSample then
+						SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSwap, Pos+1, 'Swap samples'));
+				end;
 				ExchangeSamples(CurrentSample-1, Pos, True, True);
 				CurrentSample := Pos+1;
 			end;
@@ -507,6 +623,10 @@ begin
 		ACTION_COPYSAMPLE:
 			if (Pos >= 0) and (Pos <> CurrentSample-1) then
 			begin
+				if not SampleEdit.IsUndoInProgress then
+				begin
+					SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaCopy, GetCurrentSample.Index, 'Copy sample'));
+				end;
 				GetCurrentSample.Assign(Module.Samples[Pos]);
 				Module.SetModified;
 			end;
@@ -847,12 +967,40 @@ procedure TSampleScreen.ValueChanged(Sender: TCWEControl);
 var
 	i: Integer;
 	Sample: TSample;
+	IsDragging: Boolean;
 begin
 	if (Updating) or (not (Sender.Focused)) then Exit;
 	if not (CurrentSample in [1..31]) then Exit;
 
-	Module.SetModified;
 	Sample := GetCurrentSample;
+	
+	// Check if this slider is currently being dragged
+	IsDragging := (Screen.MouseInfo.Capturing) and (Screen.MouseInfo.Control = Sender);
+	
+	// Only create undo entry if:
+	// 1. Not in undo operation
+	// 2. Not currently dragging this slider (first change) OR different slider started dragging
+	if not SampleEdit.IsUndoInProgress then
+	begin
+		if (not IsDragging) or (SliderDragActive <> Sender) then
+		begin
+			// Start of drag or first change - create undo entry
+			SliderDragActive := Sender;
+			
+			if Sender = sliFineTune then
+				SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSetFinetune, Sample.Index, 'Set finetune'))
+			else
+			if Sender = sliVolume then
+				SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSetVolume, Sample.Index, 'Set volume'))
+			else
+			if (Sender = sliLoopStart) or (Sender = sliLoopEnd) then
+				SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSetLoop, Sample.Index, 'Set loop points'));
+		end;
+	end;
+	
+	// Clear drag tracking when drag ends
+	if (not IsDragging) and (SliderDragActive = Sender) then
+		SliderDragActive := nil;
 
 	if Sender = sliFineTune then
 	begin
@@ -860,6 +1008,7 @@ begin
 			if FineTunes[i] = sliFineTune.Position then
 			begin
 				Sample.Finetune := i;
+				Module.SetModified;
 				Exit;
 			end;
 	end
@@ -867,6 +1016,7 @@ begin
 	if Sender = sliVolume then
 	begin
 		Sample.Volume := sliVolume.Position;
+		Module.SetModified;
 	end
 	else
 	if (Sender = sliLoopStart) or (Sender = sliLoopEnd) then
@@ -874,6 +1024,7 @@ begin
 		Sample.LoopStart  := sliLoopStart.Position;
 		Sample.LoopLength := sliLoopEnd.Position - sliLoopStart.Position;
 		Sample.UpdateVoice;
+		Module.SetModified;
 		UpdateSampleInfo;
 		Waveform.Paint;
 	end;
@@ -977,6 +1128,10 @@ begin
 	ColorFore := 6;
 	ColorBack := 3;
 	Cursor.X := LENGTH_SAMPLETEXT;
+	
+	// Initialize name tracking for undo
+	LastSampleIndex := 0;
+	LastSampleName := '';
 
 	WantMouse := True;
 	WantKeyboard := True;
@@ -1002,6 +1157,18 @@ begin
 		//
 		Sample := GetCurrentSample;
 		if Sample = nil then Exit;
+
+		// Create undo entry on first character change or if sample changed
+		// We need to capture the name BEFORE modifying it
+		if not SampleEdit.IsUndoInProgress then
+		begin
+			if (LastSampleIndex <> Sample.Index) or (LastSampleName <> Sample.GetName) then
+			begin
+				SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSetName, Sample.Index, 'Edit sample name'));
+				LastSampleName := Sample.GetName; // Store name before modification
+				LastSampleIndex := Sample.Index;
+			end;
+		end;
 
 		S := Sample.GetName;
 		while Length(S) < Cursor.X do
@@ -1137,22 +1304,52 @@ begin
 		ctrlkeyDELETE:
 			if not CursorInPlay then
 			begin
-				S := Sample.GetName;
-				Delete(S, Cursor.X+1, 1);
-				Sample.SetName(S);
-				Result := True;
-				Module.SetModified;
+				Sample := GetCurrentSample;
+				if Sample <> nil then
+				begin
+					// Create undo entry on first deletion or if sample changed
+					// Capture name BEFORE modification
+					if not SampleEdit.IsUndoInProgress then
+					begin
+						if (LastSampleIndex <> Sample.Index) or (LastSampleName <> Sample.GetName) then
+						begin
+							SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSetName, Sample.Index, 'Edit sample name'));
+							LastSampleName := Sample.GetName; // Store name before modification
+							LastSampleIndex := Sample.Index;
+						end;
+					end;
+					S := Sample.GetName;
+					Delete(S, Cursor.X+1, 1);
+					Sample.SetName(S);
+					Result := True;
+					Module.SetModified;
+				end;
 			end;
 
 		ctrlkeyBACKSPACE:
 			if not CursorInPlay then
 			begin
-				S := Sample.GetName;
-				Delete(S, Cursor.X, 1);
-				Sample.SetName(S);
-				if Cursor.X > 0 then Dec(Cursor.X);
-				Result := True;
-				Module.SetModified;
+				Sample := GetCurrentSample;
+				if Sample <> nil then
+				begin
+					// Create undo entry on first deletion or if sample changed
+					// Capture name BEFORE modification
+					if not SampleEdit.IsUndoInProgress then
+					begin
+						if (LastSampleIndex <> Sample.Index) or (LastSampleName <> Sample.GetName) then
+						begin
+							SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSetName, Sample.Index, 'Edit sample name'));
+							LastSampleName := Sample.GetName; // Store name before modification
+							LastSampleIndex := Sample.Index;
+						end;
+					end;
+					S := Sample.GetName;
+					Delete(S, Cursor.X, 1);
+					Sample.SetName(S);
+					if Cursor.X > 0 then Dec(Cursor.X);
+					Result := True;
+					Module.SetModified;
+				end;
 			end;
 
 		ctrlkeyRETURN:
@@ -1228,6 +1425,10 @@ begin
 
 				keySampleCutLeft:
 				begin
+					if not SampleEdit.IsUndoInProgress then
+					begin
+						SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaPreLoopCut, Sample.Index, 'Cut pre-loop'));
+					end;
 					Module.Stop;
 					Sample.PreLoopCut;
 					SampleChanged;
@@ -1235,6 +1436,10 @@ begin
 
 				keySampleCutRight:
 				begin
+					if not SampleEdit.IsUndoInProgress then
+					begin
+						SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaPostLoopCut, Sample.Index, 'Cut post-loop'));
+					end;
 					Module.Stop;
 					Sample.PostLoopCut;
 					SampleChanged;
@@ -1242,12 +1447,20 @@ begin
 
 				keySampleReverse:
 				begin
+					if not SampleEdit.IsUndoInProgress then
+					begin
+						SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaReverse, Sample.Index, 'Reverse sample'));
+					end;
 					Sample.Reverse;
 					SampleChanged;
 				end;
 
 				keySampleInvert:
 				begin
+					if not SampleEdit.IsUndoInProgress then
+					begin
+						SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaInvert, Sample.Index, 'Invert sample'));
+					end;
 					Sample.Invert;
 					SampleChanged;
 				end;
@@ -1280,9 +1493,28 @@ begin
 				keySampleSave:
 					SampleScreen.SaveSample;
 
+				keySampleUndo:
+				begin
+					SampleEdit.Undo;
+					Waveform.DrawWaveform;
+					SampleScreen.UpdateSampleInfo;
+				end;
+
+				keySampleRedo:
+				begin
+					SampleEdit.Redo;
+					Waveform.DrawWaveform;
+					SampleScreen.UpdateSampleInfo;
+				end;
+
 				keySampleMoveUp:
 					if (IsFocused) and (CurrentSample > 1) then
 					begin
+						if not SampleEdit.IsUndoInProgress then
+						begin
+							SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSwap, CurrentSample, 'Move sample up'));
+							SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSwap, CurrentSample-1, 'Move sample up'));
+						end;
 						SampleScreen.ExchangeSamples(
 							CurrentSample-1, CurrentSample-2, True, True);
 						Module.IndexSamples;
@@ -1292,6 +1524,11 @@ begin
 				keySampleMoveDown:
 					if (IsFocused) and (CurrentSample <= 30) then
 					begin
+						if not SampleEdit.IsUndoInProgress then
+						begin
+							SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSwap, CurrentSample, 'Move sample down'));
+							SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSwap, CurrentSample+1, 'Move sample down'));
+						end;
 						SampleScreen.ExchangeSamples(
 							CurrentSample-1, CurrentSample, True, True);
 						Module.IndexSamples;
@@ -1300,11 +1537,23 @@ begin
 
 				keySampleInsertSlot:
 					if IsFocused then
+					begin
+						if not SampleEdit.IsUndoInProgress then
+						begin
+							SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaInsertSlot, CurrentSample, 'Insert sample slot'));
+						end;
 						SampleScreen.InsertSampleSlot(CurrentSample-1);
+					end;
 
 				keySampleRemoveSlot:
 					if IsFocused then
+					begin
+						if not SampleEdit.IsUndoInProgress then
+						begin
+							SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaDeleteSlot, CurrentSample, 'Delete sample slot'));
+						end;
 						SampleScreen.DeleteSampleSlot(CurrentSample-1);
+					end;
 
 				keySampleCopy:
 					if IsFocused then
@@ -1324,12 +1573,22 @@ begin
 				keySampleClear:
 					if IsFocused then
 					begin
+						if not SampleEdit.IsUndoInProgress then
+						begin
+							SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSetName, Sample.Index, 'Clear sample name'));
+						end;
 						Sample.SetName('');
+						LastSampleName := '';
+						LastSampleIndex := Sample.Index;
 						Module.SetModified;
 					end;
 
 				keySampleDelete:
 				begin
+					if not SampleEdit.IsUndoInProgress then
+					begin
+						SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaClear, Sample.Index, 'Clear sample'));
+					end;
 					Module.Stop;
 					Sample.Clear;
 					SampleChanged;
@@ -1346,7 +1605,12 @@ begin
 	// new sample selected, update slider values
 	//
 	if CurrentSample <> PreviousSample then
+	begin
 		SampleScreen.UpdateSampleInfo;
+		// Reset name tracking when sample changes
+		LastSampleIndex := 0;
+		LastSampleName := '';
+	end;
 
 	Paint;
 end;
