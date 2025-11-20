@@ -5,7 +5,7 @@ unit Screen.Editor;
 interface
 
 uses
-	Classes, Types, SysUtils, Math,
+	Classes, Types, SysUtils, Math, DateUtils,
 	TextMode, CWE.Core, CWE.Dialogs,
 	CWE.Widgets.Text, CWE.Widgets.Numeric,
 	ProTracker.Player, ProTracker.Editor;
@@ -65,6 +65,7 @@ type
 
 	TOrderList = class(TCWEControl)
 	private
+		PrevClickTime: TDateTime;
 		procedure	AddOrderUndo(ActionType: TUndoActionType; Order: Byte; OldValue, NewValue: Byte; const Description: AnsiString);
 		procedure	AddOrderCountUndo(OldCount, NewCount: Byte);
 	public
@@ -1304,10 +1305,39 @@ begin
 end;
 
 function TOrderList.MouseDown(Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean;
+var
+	PatternNum: Byte;
 begin
-	Cursor.X := 0;
-	Cursor.Y := P.Y + Offset;
+	if Button = mbLeft then
+	begin
+		Cursor.X := 0;
+		Cursor.Y := P.Y + Offset;
+		
+		// detect double click
+		if (PrevClickTime > 0) and (MilliSecondsBetween(Now, PrevClickTime) < 500) then
+		begin
+			// double click detected - switch to pattern
+			if (Cursor.Y < Module.Info.OrderCount) then
+			begin
+				PatternNum := Module.OrderList[Cursor.Y];
+				Editor.SelectPattern(PatternNum);
+			end;
+			PrevClickTime := 0; // reset to prevent triple-click
+			Result := True;
+			Paint;
+			Exit;
+		end
+		else
+			PrevClickTime := Now;
+	end
+	else
+	begin
+		Cursor.X := 0;
+		Cursor.Y := P.Y + Offset;
+	end;
+	
 	Result := True;
+	Paint;
 end;
 
 procedure TOrderList.AddOrderUndo(ActionType: TUndoActionType; Order: Byte; OldValue, NewValue: Byte; const Description: AnsiString);
