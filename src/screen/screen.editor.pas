@@ -1214,15 +1214,25 @@ begin
 			Cursor.Y := 127;
 
 		ctrlkeyPGUP:
-			Cursor.Y := Max(0, Cursor.Y - Height);
+			Cursor.Y := Max(0, Cursor.Y - 16);
 
 		ctrlkeyPGDN:
-			Cursor.Y := Min(127, Cursor.Y + Height);
+			Cursor.Y := Min(127, Cursor.Y + 16);
 
 	else
 		i := Pos(Chr(Min(Key, 255)), KeyboardNumbers) - 1;
 		if i >= 0 then
 		begin
+			// Expand orderlist if needed
+			if Cursor.Y >= Module.Info.OrderCount then
+			begin
+				// Fill unused entries before cursor with 00
+				for p := Module.Info.OrderCount to Cursor.Y - 1 do
+					Module.OrderList[p] := 0;
+				// Expand ordercount to include cursor position
+				Module.Info.OrderCount := Cursor.Y + 1;
+			end;
+			
 			p := Module.OrderList[Cursor.Y];
 			if Cursor.X = 0 then
 			begin
@@ -1299,8 +1309,11 @@ begin
 		end;
 
 		Console.Write(TextVals3[i], Rect.Left, Rect.Top + y, con);
-		Console.Write(TextVals[Module.OrderList[i]],
-			Rect.Left + 4, Rect.Top + y, col);
+		if i >= Module.Info.OrderCount then
+			Console.Write(CHR_2PERIODS, Rect.Left + 4, Rect.Top + y, col)
+		else
+			Console.Write(TextVals[Module.OrderList[i]],
+				Rect.Left + 4, Rect.Top + y, col);
 	end;
 
 	// draw cursor
