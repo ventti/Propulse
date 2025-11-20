@@ -69,12 +69,13 @@ const
 	SCRSEP = '%R'#3'%%';
 
 	Scroll_Text: AnsiString = '                  ' +
-	'%Ghukka%% presents %WPropulse Tracker ' + ProTracker.Util.VERSION + '%% § ' +
-	'%WPT2PLAY%% playroutine and coding help by %G8bitbubsy%% § ' +
-	'Thanks to %Gmuzzy%% § %Gwuffe%% § %GTempest%% § %GMark Knopper%% § ' +
-	'For full credits press F1 § ' +
-	'Greets to %WVoid § %Wexec § %Wsvenonacid § %Y#kukkakoodi § %Y#protracker § '+
-	'%GHaikz § %GArchyx § %GHofnarr § %GKaarlo § %GCrank § %GLarkku § %Gamaneog § ' +
+	'%WPropulse Tracker ' + ProTracker.Util.VERSION + '%% ï¿½ ' +
+	'Original by %Ghukka%%, EXTended in 2025 by %GVent%% + %GTempest%% ï¿½ ' +
+	'%WPT2PLAY%% playroutine and coding help by %G8bitbubsy%% ï¿½ ' +
+	'Thanks to %Gmuzzy%% ï¿½ %Gwuffe%% ï¿½ %GTempest%% ï¿½ %GMark Knopper%% ï¿½ ' +
+	'For full credits press F1 ï¿½ ' +
+	'Greets to %WVoid ï¿½ %Wexec ï¿½ %Wsvenonacid ï¿½ %Y#kukkakoodi ï¿½ %Y#protracker ï¿½ '+
+	'%GHaikz ï¿½ %GArchyx ï¿½ %GHofnarr ï¿½ %GKaarlo ï¿½ %GCrank ï¿½ %GLarkku ï¿½ %Gamaneog ï¿½ ' +
 	'%%' + '                   ';
 
 
@@ -134,7 +135,7 @@ var
 {$ENDIF}
 begin
 	Randomize;
-	ScrollText := StringReplace(Scroll_Text, '§', SCRSEP, [rfReplaceAll]);
+	ScrollText := StringReplace(Scroll_Text, 'ï¿½', SCRSEP, [rfReplaceAll]);
 	ScrollChar := 0;
 
 	{$IFDEF MIDI_DISPLAY}
@@ -231,6 +232,7 @@ begin
 	Y := Console.Height - 9;
 
 	Console.WriteCentered(' (C) 2016-2019 hukka (Joel Toivonen)', Y+0);
+	Console.WriteCentered(' EXTended in 2025 by Vent + Tempest', Y+1);
 	Console.WriteCentered(' Original playroutine by 8bitbubsy (Olav Sorensen)', Y+2);
 
 	inherited;

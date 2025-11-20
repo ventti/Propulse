@@ -1584,6 +1584,7 @@ begin
 		Build.CompileDate + ' ' + Build.CompileTime + ')');
 	Log('');
 	Log(TEXT_LIGHT + '(C) 2016-2019 hukka (Joel Toivonen)');
+	Log(TEXT_LIGHT + 'fork and knife by vent + tempest (2025)');
 	Log(TEXT_LIGHT + URL);
 	Log(TEXT_LIGHT + 'Contains code based on work by 8bitbubsy (Olav Sorensen)');
 	Log('');
