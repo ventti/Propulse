@@ -6,9 +6,9 @@ uses
 	ConfigurationManager, Types;
 
 const
-	VERSION  =  '0.9.6.1';
+	VERSION  =  '0.10.0';
 
-	URL = 'http://hukka.ncn.fi/propulse/';
+	URL = 'http://github.com/ventti/Propulse/';
 
 	// ========================================================================
 	// Default files
