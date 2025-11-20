@@ -105,12 +105,20 @@ type
 		uaBlockSlideEffect, // Block slide effect
 		uaReplaceSample, // Sample replaced in pattern
 		uaInsertPattern, // Pattern inserted
-		uaDeletePattern  // Pattern deleted
+		uaDeletePattern, // Pattern deleted
+		uaSetOrder,		// Orderlist entry changed
+		uaInsertOrder,	// Orderlist entry inserted
+		uaDeleteOrder,	// Orderlist entry deleted
+		uaSetOrderCount  // Orderlist count changed
 	);
 
 	TUndoChange = record
 		Pattern, Channel, Row: Byte;
 		OldNote, NewNote: TNote;
+		// Orderlist fields (used when ActionType is orderlist-related)
+		Order: Byte;
+		OldOrderValue, NewOrderValue: Byte;
+		OldOrderCount, NewOrderCount: Byte;
 	end;
 
 	TUndoEntry = record
@@ -118,6 +126,9 @@ type
 		Pattern: Byte;
 		Changes: array of TUndoChange;
 		Description: AnsiString;
+		// Cursor positions for restoring after undo/redo
+		CursorPattern, CursorChannel, CursorRow: Byte;
+		CursorOrder: Byte;
 	end;
 
 	TPatternEditor = class(TCWEControl)
@@ -139,15 +150,13 @@ type
 		Drawing:	Boolean;
 		Marking: 	Boolean;
 		MarkPos: 	TPoint;
-		UndoBuffer: array[0..29] of TUndoEntry;
+		UndoBuffer: array[0..99] of TUndoEntry;
 		UndoIndex:	Integer;
 		UndoCount:	Integer;
 		RedoCount:	Integer;
 		UndoInProgress: Boolean;
 		
-		procedure	AddUndoEntry(const Entry: TUndoEntry);
 		procedure	ClearRedo;
-		function	CreateUndoEntry(ActionType: TUndoActionType; Pattern: Byte; const Description: AnsiString): TUndoEntry;
 	public
 		Cursor:		TEditCursor;
 		Selection: 	TRect;
@@ -157,6 +166,10 @@ type
 		HighOctave:	Boolean;
 		LastNote:	TNote;
 		EditMask:	array[EM_SAMPLE..EM_EFFECT] of Boolean;
+
+		procedure	AddUndoEntry(const Entry: TUndoEntry);
+		function	CreateUndoEntry(ActionType: TUndoActionType; Pattern: Byte; const Description: AnsiString): TUndoEntry;
+		property	IsUndoInProgress: Boolean read UndoInProgress;
 
 		procedure 	SetModified(B: Boolean = True; Force: Boolean = False);
 		procedure 	SelectChannel(Ch: Integer);
@@ -535,6 +548,11 @@ begin
 	Result.Pattern := Pattern;
 	Result.Description := Description;
 	SetLength(Result.Changes, 0);
+	// Store current cursor position
+	Result.CursorPattern := CurrentPattern;
+	Result.CursorChannel := Cursor.Channel;
+	Result.CursorRow := Cursor.Row;
+	Result.CursorOrder := 0; // Will be set by orderlist undo if needed
 end;
 
 procedure TPatternEditor.AddUndoEntry(const Entry: TUndoEntry);
@@ -548,11 +566,11 @@ begin
 	
 	// Move forward in circular buffer
 	Inc(UndoIndex);
-	if UndoIndex >= 30 then
+	if UndoIndex >= 100 then
 		UndoIndex := 0;
 	
 	// If buffer is full, we're overwriting oldest entry
-	if UndoCount < 30 then
+	if UndoCount < 100 then
 		Inc(UndoCount);
 	
 	// Store the entry
@@ -567,7 +585,7 @@ end;
 function TPatternEditor.CanRedo: Boolean;
 begin
 	// Can redo if there are entries after the current undo position
-	Result := (RedoCount > 0) and (UndoCount + RedoCount <= 30);
+	Result := (RedoCount > 0) and (UndoCount + RedoCount <= 100);
 end;
 
 procedure TPatternEditor.Undo;
@@ -587,21 +605,71 @@ begin
 	Locked := True;
 	
 	try
-		// Apply undo: restore old note values
+		// Apply undo: restore old values
 		for i := 0 to High(Entry.Changes) do
 		begin
 			Change := Entry.Changes[i];
-			Module.Notes[Entry.Pattern, Change.Channel, Change.Row] := Change.OldNote;
+			case Entry.ActionType of
+				uaSetOrder:
+					Module.OrderList[Change.Order] := Change.OldOrderValue;
+				uaInsertOrder:
+				begin
+					// Undo insert: delete the inserted entry
+					Module.OrderList.Delete(Change.Order);
+					if Module.Info.OrderCount > 0 then
+						Dec(Module.Info.OrderCount);
+				end;
+				uaDeleteOrder:
+				begin
+					// Undo delete: insert the deleted value back
+					Module.OrderList.Insert(Change.Order, Change.OldOrderValue);
+					if Module.Info.OrderCount < 127 then
+						Inc(Module.Info.OrderCount);
+				end;
+				uaSetOrderCount:
+					Module.Info.OrderCount := Change.OldOrderCount;
+			else
+				Module.Notes[Entry.Pattern, Change.Channel, Change.Row] := Change.OldNote;
+			end;
 		end;
 		
 		// Move backwards in undo stack, add to redo
 		Dec(UndoIndex);
 		if UndoIndex < 0 then
-			UndoIndex := 29;
+			UndoIndex := 99;
 		Dec(UndoCount);
 		Inc(RedoCount);
 		
 		MessageText('Undo: ' + Entry.Description);
+		
+		// Restore cursor position
+		if Entry.ActionType in [uaSetOrder, uaInsertOrder, uaDeleteOrder, uaSetOrderCount] then
+		begin
+			// Orderlist change: restore orderlist cursor
+			if Assigned(OrderList) then
+			begin
+				OrderList.Cursor.Y := Entry.CursorOrder;
+				OrderList.Cursor.X := 0;
+				if Assigned(Editor) then
+				begin
+					Editor.ActiveControl := OrderList;
+					OrderList.Paint;
+					Editor.UpdateInfoLabels;
+				end;
+			end;
+		end
+		else
+		begin
+			// Pattern change: restore pattern editor cursor
+			if Entry.CursorPattern <= MAX_PATTERNS then
+			begin
+				CurrentPattern := Entry.CursorPattern;
+				SelectChannel(Entry.CursorChannel);
+				Cursor.Row := Entry.CursorRow;
+				ValidateCursor;
+				Paint;
+			end;
+		end;
 	finally
 		Locked := False;
 		UndoInProgress := False;
@@ -623,7 +691,7 @@ begin
 	
 	// Move forward to get the redo entry
 	Inc(UndoIndex);
-	if UndoIndex >= 30 then
+	if UndoIndex >= 100 then
 		UndoIndex := 0;
 	
 	Entry := UndoBuffer[UndoIndex];
@@ -631,11 +699,32 @@ begin
 	Locked := True;
 	
 	try
-		// Apply redo: restore new note values
+		// Apply redo: restore new values
 		for i := 0 to High(Entry.Changes) do
 		begin
 			Change := Entry.Changes[i];
-			Module.Notes[Entry.Pattern, Change.Channel, Change.Row] := Change.NewNote;
+			case Entry.ActionType of
+				uaSetOrder:
+					Module.OrderList[Change.Order] := Change.NewOrderValue;
+				uaInsertOrder:
+				begin
+					// Redo insert: insert the value back
+					Module.OrderList.Insert(Change.Order, Change.NewOrderValue);
+					if Module.Info.OrderCount < 127 then
+						Inc(Module.Info.OrderCount);
+				end;
+				uaDeleteOrder:
+				begin
+					// Redo delete: delete the entry again
+					Module.OrderList.Delete(Change.Order);
+					if Module.Info.OrderCount > 0 then
+						Dec(Module.Info.OrderCount);
+				end;
+				uaSetOrderCount:
+					Module.Info.OrderCount := Change.NewOrderCount;
+			else
+				Module.Notes[Entry.Pattern, Change.Channel, Change.Row] := Change.NewNote;
+			end;
 		end;
 		
 		// Move forward in undo stack, remove from redo
@@ -643,6 +732,35 @@ begin
 		Dec(RedoCount);
 		
 		MessageText('Redo: ' + Entry.Description);
+		
+		// Restore cursor position
+		if Entry.ActionType in [uaSetOrder, uaInsertOrder, uaDeleteOrder, uaSetOrderCount] then
+		begin
+			// Orderlist change: restore orderlist cursor
+			if Assigned(OrderList) then
+			begin
+				OrderList.Cursor.Y := Entry.CursorOrder;
+				OrderList.Cursor.X := 0;
+				if Assigned(Editor) then
+				begin
+					Editor.ActiveControl := OrderList;
+					OrderList.Paint;
+					Editor.UpdateInfoLabels;
+				end;
+			end;
+		end
+		else
+		begin
+			// Pattern change: restore pattern editor cursor
+			if Entry.CursorPattern <= MAX_PATTERNS then
+			begin
+				CurrentPattern := Entry.CursorPattern;
+				SelectChannel(Entry.CursorChannel);
+				Cursor.Row := Entry.CursorRow;
+				ValidateCursor;
+				Paint;
+			end;
+		end;
 	finally
 		Locked := False;
 		UndoInProgress := False;

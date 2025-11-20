@@ -64,6 +64,9 @@ type
 	end;
 
 	TOrderList = class(TCWEControl)
+	private
+		procedure	AddOrderUndo(ActionType: TUndoActionType; Order: Byte; OldValue, NewValue: Byte; const Description: AnsiString);
+		procedure	AddOrderCountUndo(OldCount, NewCount: Byte);
 	public
 		Cursor:		TOrderlistCursor;
 		Offset:		Byte;
@@ -1152,6 +1155,7 @@ function TOrderList.KeyDown(var Key: Integer; Shift: TShiftState): Boolean;
 var
 	p, i: Integer;
 	Sc: ControlKeyNames;
+	EdSc: EditorKeyNames;
 begin
 	if Key = 0 then Exit(False);
 	Result := True;
@@ -1160,6 +1164,29 @@ begin
 	begin
 		Module.Play(Cursor.Y, 0);
 		Exit;
+	end;
+
+	// Check for undo/redo shortcuts (EditorKeys)
+	EdSc := EditorKeyNames(Shortcuts.Find(EditorKeys, Key, Shift));
+	case EdSc of
+		keyUndo:
+		begin
+			if Assigned(PatternEditor) then
+			begin
+				PatternEditor.Undo;
+				Paint;
+			end;
+			Exit;
+		end;
+		keyRedo:
+		begin
+			if Assigned(PatternEditor) then
+			begin
+				PatternEditor.Redo;
+				Paint;
+			end;
+			Exit;
+		end;
 	end;
 
 	Sc := ControlKeyNames(Shortcuts.Find(ControlKeys, Key, Shift));
@@ -1189,22 +1216,31 @@ begin
 
 		ctrlkeySPACE:
 		begin
+			AddOrderCountUndo(Module.Info.OrderCount, Cursor.Y + 1);
 			Module.Info.OrderCount := Cursor.Y + 1;
 			Editor.UpdateInfoLabels;
 		end;
 
 		ctrlkeyINSERT:
 		begin
+			AddOrderUndo(uaInsertOrder, Cursor.Y, Module.OrderList[Cursor.Y], CurrentPattern, 'Insert order');
 			Module.OrderList.Insert(Cursor.Y, CurrentPattern);
 			if Module.Info.OrderCount < 127 then
+			begin
+				AddOrderCountUndo(Module.Info.OrderCount, Module.Info.OrderCount + 1);
 				Inc(Module.Info.OrderCount);
+			end;
 		end;
 
 		ctrlkeyDELETE:
 		begin
+			AddOrderUndo(uaDeleteOrder, Cursor.Y, Module.OrderList[Cursor.Y], 0, 'Delete order');
 			Module.OrderList.Delete(Cursor.Y);
 			if (Module.Info.OrderCount > 0) and (Cursor.Y < Module.Info.OrderCount) then
+			begin
+				AddOrderCountUndo(Module.Info.OrderCount, Module.Info.OrderCount - 1);
 				Dec(Module.Info.OrderCount);
+			end;
 		end;
 
 		ctrlkeyHOME:
@@ -1230,17 +1266,20 @@ begin
 				for p := Module.Info.OrderCount to Cursor.Y - 1 do
 					Module.OrderList[p] := 0;
 				// Expand ordercount to include cursor position
+				AddOrderCountUndo(Module.Info.OrderCount, Cursor.Y + 1);
 				Module.Info.OrderCount := Cursor.Y + 1;
 			end;
 			
 			p := Module.OrderList[Cursor.Y];
 			if Cursor.X = 0 then
 			begin
+				AddOrderUndo(uaSetOrder, Cursor.Y, p, (i * 10) + (p mod 10), 'Set order');
 				Module.OrderList[Cursor.Y] := (i * 10) + (p mod 10);
 				Cursor.X := 1;
 			end
 			else
 			begin
+				AddOrderUndo(uaSetOrder, Cursor.Y, p, (p div 10 * 10) + i, 'Set order');
 				Module.OrderList[Cursor.Y] := (p div 10 * 10) + i;
 				Cursor.X := 0;
 				Inc(Cursor.Y);
@@ -1267,6 +1306,43 @@ begin
 	Cursor.X := 0;
 	Cursor.Y := P.Y + Offset;
 	Result := True;
+end;
+
+procedure TOrderList.AddOrderUndo(ActionType: TUndoActionType; Order: Byte; OldValue, NewValue: Byte; const Description: AnsiString);
+var
+	UndoEntry: TUndoEntry;
+	Change: TUndoChange;
+begin
+	if not Assigned(PatternEditor) then Exit;
+	if PatternEditor.IsUndoInProgress then Exit;
+	
+	UndoEntry := PatternEditor.CreateUndoEntry(ActionType, 0, Description);
+	SetLength(UndoEntry.Changes, 1);
+	Change.Order := Order;
+	Change.OldOrderValue := OldValue;
+	Change.NewOrderValue := NewValue;
+	UndoEntry.Changes[0] := Change;
+	// Store orderlist cursor position
+	UndoEntry.CursorOrder := Cursor.Y;
+	PatternEditor.AddUndoEntry(UndoEntry);
+end;
+
+procedure TOrderList.AddOrderCountUndo(OldCount, NewCount: Byte);
+var
+	UndoEntry: TUndoEntry;
+	Change: TUndoChange;
+begin
+	if not Assigned(PatternEditor) then Exit;
+	if PatternEditor.IsUndoInProgress then Exit;
+	
+	UndoEntry := PatternEditor.CreateUndoEntry(uaSetOrderCount, 0, 'Set order count');
+	SetLength(UndoEntry.Changes, 1);
+	Change.OldOrderCount := OldCount;
+	Change.NewOrderCount := NewCount;
+	UndoEntry.Changes[0] := Change;
+	// Store orderlist cursor position
+	UndoEntry.CursorOrder := Cursor.Y;
+	PatternEditor.AddUndoEntry(UndoEntry);
 end;
 
 procedure TOrderList.Paint;
