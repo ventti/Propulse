@@ -55,7 +55,8 @@ type
 		g, ct256:	Extended;
 		Vector,
 		Vector1,
-		Vector2:	TVectorObject;
+		Vector2,
+		Vector3:	TVectorObject;
 		TextChangeCounter: Integer;
 		Starfield:	array[0..AMOUNT_STARS] of TStar;
 
@@ -333,9 +334,11 @@ begin
 
 	Vector1 := TVectorObject.Create('PROPULSE');
 	Vector2 := TVectorObject.Create('TRACKER');
+	Vector3 := TVectorObject.Create('EXTENDED');
 
 	Vector1.X := ScreenCenter.X; Vector1.Y := ScreenCenter.Y;
 	Vector2.X := ScreenCenter.X; Vector2.Y := ScreenCenter.Y;
+	Vector3.X := ScreenCenter.X; Vector3.Y := ScreenCenter.Y;
 
 	ct256 := 0.0;
 	g := 0.5;
@@ -352,6 +355,7 @@ destructor TSplashEffectVector.Destroy;
 begin
 	Vector1.Free;
 	Vector2.Free;
+	Vector3.Free;
 	TempVector.Free;
 	inherited Destroy;
 end;
@@ -399,9 +403,15 @@ begin
 		OtherVector := Vector1;
 	end
 	else
+	if Vector = Vector2 then
+	begin
+		Vector := Vector3;
+		OtherVector := Vector2;
+	end
+	else
 	begin
 		Vector := Vector1;
-		OtherVector := Vector2;
+		OtherVector := Vector3;
 	end;
 
 //	Vector.LineColor := Random($FFFFFFFF);
