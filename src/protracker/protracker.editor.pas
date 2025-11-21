@@ -286,7 +286,7 @@ begin
 
 	EditMask[EM_SAMPLE] := True;
 	EditMask[EM_VOLUME] := True;
-	EditMask[EM_EFFECT] := False; // Mutually exclusive with volume, but display shows same status
+	EditMask[EM_EFFECT] := False;
 
 	{$IFDEF TIMING}
 	Time.Init;
@@ -2256,18 +2256,12 @@ begin
 					COL_SAMPLE_1, COL_SAMPLE_2:
 						o := EM_SAMPLE;
 
-					COL_VOLUME_1, COL_VOLUME_2,
+					COL_VOLUME_1, COL_VOLUME_2:
+						o := EM_VOLUME;
+
 					COL_COMMAND,
 					COL_PARAMETER_1, COL_PARAMETER_2:
-					begin
-						// Toggle both volume and effect editing simultaneously
-						// (ProTracker format doesn't allow both simultaneously)
-						o := Ord(EditMask[EM_VOLUME]);
-						EditMask[EM_VOLUME] := not EditMask[EM_VOLUME];
-						EditMask[EM_EFFECT] := Boolean(1 - o);
-						Editor.UpdateInfoLabels(True);
-						Exit;
-					end;
+						o := EM_EFFECT;
 
 				end;
 				if o >= EM_SAMPLE then

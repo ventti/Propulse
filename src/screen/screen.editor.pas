@@ -1011,13 +1011,11 @@ begin
 				S := S + CH + CH + CHR_EMPTY
 			else
 				S := S + CHR_EMPTY + CHR_EMPTY + CHR_EMPTY;
-			// Volume and effect are mutually exclusive in ProTracker format,
-			// so show them with the same status
 			if PatternEditor.EditMask[EM_VOLUME] then
 				S := S + CH + CH + CHR_EMPTY
 			else
 				S := S + CHR_EMPTY + CHR_EMPTY + CHR_EMPTY;
-			if PatternEditor.EditMask[EM_VOLUME] then // Use volume status for effect too
+			if PatternEditor.EditMask[EM_EFFECT] then
 				S := S + CH + CH + CH + CHR_EMPTY
 			else
 				S := S + CHR_EMPTY + CHR_EMPTY + CHR_EMPTY;
