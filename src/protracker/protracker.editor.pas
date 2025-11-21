@@ -4,7 +4,7 @@ interface
 
 uses
 //	Windows,
-	Classes, Types, SysUtils, Math,
+	Classes, Types, SysUtils, Math, DateUtils,
 	TextMode, CWE.Core, CWE.Widgets.Text, ShortcutManager,
 	ProTracker.Player;
 
@@ -150,6 +150,15 @@ type
 		Drawing:	Boolean;
 		Marking: 	Boolean;
 		MarkPos: 	TPoint;
+		MouseDragging: Boolean;
+		MouseDragStart: TPoint;
+		MouseDragStartChan: Integer;
+		MouseDragStartRow: Integer;
+		PrevClickTime: TDateTime;
+		PrevClickPos: TPoint;
+		PrevClickChan: Integer;
+		PrevClickRow: Integer;
+		PrevSelectionState: TRect; // Store selection state before first click for toggle detection
 		UndoBuffer: array[0..99] of TUndoEntry;
 		UndoIndex:	Integer;
 		UndoCount:	Integer;
@@ -157,6 +166,8 @@ type
 		UndoInProgress: Boolean;
 		
 		procedure	ClearRedo;
+		function	GetChannelFromX(X: Integer): Integer;
+		function	GetRowFromY(Y: Integer): Integer;
 	public
 		Cursor:		TEditCursor;
 		Selection: 	TRect;
@@ -215,6 +226,8 @@ type
 
 		function	MouseWheel(Shift: TShiftState; WheelDelta: Integer; P: TPoint): Boolean; override;
 		function	MouseDown(Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean; override;
+		procedure	MouseMove(X, Y: Integer; P: TPoint); override;
+		function	MouseUp(Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean; override;
 		function 	KeyDown(var Key: Integer; Shift: TShiftState): Boolean; override;
 
 		constructor	Create(Owner: TCWEControl;
@@ -277,6 +290,12 @@ begin
 	UndoCount := 0;
 	RedoCount := 0;
 	UndoInProgress := False;
+	MouseDragging := False;
+		PrevClickTime := 0;
+		PrevClickPos := Point(-1, -1);
+		PrevClickChan := -1;
+		PrevClickRow := -1;
+		PrevSelectionState := Types.Rect(-1, -1, -1, -1);
 
 	SetBorder(True, True, True, False);
 
@@ -528,6 +547,9 @@ begin
 		Module.SetModified(False, True);
 		Editor.lblFilename.SetCaption(ExtractFilename(Fn));
 		FileRequester.SetDirectory(ExtractFilePath(Fn));
+		// Clean up recovery file after successful save
+		if Window <> nil then
+			Window.CleanupRecoveryFile;
 	end;
 
 	ChangeScreen(TCWEScreen(LogScreen));
@@ -2448,9 +2470,13 @@ end;
 
 function TPatternEditor.MouseDown(Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean;
 var
-	Chan: Byte;
+	Chan, Row: Integer;
+	IsDoubleClick: Boolean;
+	NowTime: TDateTime;
+	ColOffset: Integer;
 begin
 	Result := True;
+	NowTime := Now;
 
 	if P.X < 2 then // row number clicked
 	begin
@@ -2461,46 +2487,312 @@ begin
 		Exit;
 	end;
 
-	P.X := P.X - 3;
-	if P.X < 0 then Exit(False);
-	Chan := P.X div (Width div 4);
+	Chan := GetChannelFromX(P.X);
+	Row := GetRowFromY(P.Y);
+	
+	if (Chan < 0) or (Row < 0) then
+	begin
+		if Button = mbLeft then
+			MouseDragging := False;
+		Exit(False);
+	end;
 
 	case Button of
 
 		mbLeft:
-			if Chan in [0..AMOUNT_CHANNELS-1] then
+		begin
+			// Store selection state BEFORE any modifications (needed for double-click toggle)
+			// This allows us to check what the selection was before the first click cleared it
+			// We'll use this for the toggle check on double-click
+			// Note: We need to check BEFORE clearing selection on single click
+			// Store selection state if this might be the first click of a double-click
+			if (PrevClickTime = 0) or 
+			   ((PrevClickTime > 0) and 
+			    (MilliSecondsBetween(NowTime, PrevClickTime) >= 500) and
+			    (PrevClickChan = Chan)) then
 			begin
-				// 0123456789ABC
-				// C-3 01 64 F33
-				case P.X - (Chan * (Width div 4)) of
-					$0,$1:	Cursor.Column := COL_NOTE;
-					$2: 	Cursor.Column := COL_OCTAVE;
-					$4:		Cursor.Column := COL_SAMPLE_1;
-					$5:		Cursor.Column := COL_SAMPLE_2;
-					$7: 	Cursor.Column := COL_VOLUME_1;
-					$8:		Cursor.Column := COL_VOLUME_2;
-					$A: 	Cursor.Column := COL_COMMAND;
-					$B: 	Cursor.Column := COL_PARAMETER_1;
-					$C: 	Cursor.Column := COL_PARAMETER_2;
-					$D:     Exit;
-				end;
-				Cursor.Row := P.Y + ScrollPos;
-				Cursor.Channel := Chan;
-				ValidateCursor;
-				Editor.UpdateInfoLabels(False);
+				// First click or new click on same channel (after timeout) - store current selection state
+				PrevSelectionState := Selection;
 			end;
+			
+			// Double-click detection:
+			// - Time window: 25ms to 500ms between clicks
+			// - Minimum time: 25ms (prevents glitches from accidental rapid clicks)
+			// - Maximum time: 500ms (0.5 seconds) between the two clicks
+			// - Position: Must be on the same channel AND row (logical position, not pixel)
+			// Calculation: (MilliSecondsBetween >= 25) AND (MilliSecondsBetween < 500)
+			IsDoubleClick := False;
+			if PrevClickTime > 0 then
+			begin
+				if (MilliSecondsBetween(NowTime, PrevClickTime) >= 25) and
+				   (MilliSecondsBetween(NowTime, PrevClickTime) < 500) and
+				   (PrevClickChan = Chan) and (PrevClickRow = Row) then
+				begin
+					IsDoubleClick := True;
+					{$IFDEF DEBUG}
+					MessageText(Format('Double-click detected: %dms, Chan=%d Row=%d', 
+						[MilliSecondsBetween(NowTime, PrevClickTime), Chan, Row]));
+					{$ENDIF}
+				end;
+			end;
+			
+			// Handle double-click FIRST - before any other logic
+			// Priority 1: Double-click anywhere in channel - same as Alt-L (keyBlockMarkWhole)
+			// Alt-L works regardless of row, so double-click should too
+			if IsDoubleClick then
+			begin
+				// Match Alt-L behavior: Mark entire column/pattern
+				// Toggle sequence: current channel -> all channels -> no channels
+				// Check what the selection state was BEFORE the first click
+				if (PrevSelectionState.Left = Chan) and (PrevSelectionState.Right = Chan) and
+				   (PrevSelectionState.Top = 0) and (PrevSelectionState.Bottom = 63) then
+				begin
+					// Channel was already selected, expand to all channels (same as Alt-L toggle)
+					Selection := Types.Rect(0, 0, AMOUNT_CHANNELS-1, 63);
+				end
+				else
+				if (PrevSelectionState.Left = 0) and (PrevSelectionState.Right = AMOUNT_CHANNELS-1) and
+				   (PrevSelectionState.Top = 0) and (PrevSelectionState.Bottom = 63) then
+				begin
+					// All channels were selected, clear selection (third state)
+					Selection := Types.Rect(-1, -1, -1, -1);
+				end
+				else
+				begin
+					// Channel was not selected, select this channel (rows 0-63)
+					Selection := Types.Rect(Chan, 0, Chan, 63);
+				end;
+				// Reset selection state tracking for next potential double-click
+				PrevSelectionState := Types.Rect(-1, -1, -1, -1);
+				// Update double-click tracking and exit immediately - don't enable capture
+				PrevClickTime := NowTime;
+				PrevClickPos := P;
+				PrevClickChan := Chan;
+				PrevClickRow := Row;
+				Paint;
+				Exit;
+			end;
+			
+			// Priority 2: Double-click on marked area - unmark channel
+			if IsDoubleClick and (Selection.Left >= 0) then
+			begin
+				if (Chan >= Selection.Left) and (Chan <= Selection.Right) and
+				   (Row >= Selection.Top) and (Row <= Selection.Bottom) then
+				begin
+					// Clicked in selection, unmark this channel
+					if (Selection.Left = Selection.Right) then
+					begin
+						// Only one channel selected, clear selection
+						Selection := Types.Rect(-1, -1, -1, -1);
+					end
+					else
+					begin
+						// Multiple channels, remove this one
+						if Chan = Selection.Left then
+							Selection.Left := Selection.Left + 1
+						else
+						if Chan = Selection.Right then
+							Selection.Right := Selection.Right - 1;
+					end;
+					// Update double-click tracking and exit immediately - don't enable capture
+					PrevClickTime := NowTime;
+					PrevClickPos := P;
+					PrevClickChan := Chan;
+					PrevClickRow := Row;
+					Paint;
+					Exit;
+				end;
+			end;
+			
+			// Set cursor position
+			ColOffset := P.X - 3 - (Chan * (Width div 4));
+			case ColOffset of
+				$0,$1:	Cursor.Column := COL_NOTE;
+				$2: 	Cursor.Column := COL_OCTAVE;
+				$4:		Cursor.Column := COL_SAMPLE_1;
+				$5:		Cursor.Column := COL_SAMPLE_2;
+				$7: 	Cursor.Column := COL_VOLUME_1;
+				$8:		Cursor.Column := COL_VOLUME_2;
+				$A: 	Cursor.Column := COL_COMMAND;
+				$B: 	Cursor.Column := COL_PARAMETER_1;
+				$C: 	Cursor.Column := COL_PARAMETER_2;
+				$D:     Exit;
+			end;
+			Cursor.Row := Row;
+			Cursor.Channel := Chan;
+			ValidateCursor;
+			
+			// Handle shift-click: start selection from current position
+			if (SDL_GetModState and KMOD_SHIFT) <> 0 then
+			begin
+				// Start selection from mark position or current cursor
+				if not Marking then
+				begin
+					MarkPos := Point(Cursor.Channel, Cursor.Row);
+					Marking := True;
+				end;
+				Selection.Left  := Min(Cursor.Channel, MarkPos.X);
+				Selection.Right := Max(Cursor.Channel, MarkPos.X);
+				Selection.Top   := Min(Cursor.Row, MarkPos.Y);
+				Selection.Bottom := Max(Cursor.Row, MarkPos.Y);
+				Paint;
+			end
+			else
+			begin
+				// Prepare for potential drag selection, but don't start dragging yet
+				// Only start dragging if mouse actually moves in MouseMove
+				MouseDragging := False;
+				MouseDragStart := Point(Cursor.Channel, Cursor.Row);
+				MouseDragStartChan := Cursor.Channel;
+				MouseDragStartRow := Cursor.Row;
+				Marking := False;
+				// Clear any existing selection on single click (not shift-click, not double-click)
+				// BUT: Don't clear if this might become a double-click (same channel, within 500ms)
+				// We need to preserve the selection state for toggle detection
+				// Only check channel (not row) because Alt-L works on any row
+				if not ((PrevClickTime > 0) and 
+				        (MilliSecondsBetween(NowTime, PrevClickTime) < 500) and
+				        (PrevClickChan = Chan)) then
+				begin
+					// Not a potential double-click, clear selection
+					Selection := Types.Rect(-1, -1, -1, -1);
+				end;
+				// If it IS a potential double-click, preserve the selection for now
+				// It will be handled in the double-click handler or cleared in MouseUp if timeout
+				// Enable mouse capture so we receive MouseMove events to detect actual drag
+				if Screen <> nil then
+					Screen.MouseInfo.Capturing := True;
+				Paint;
+			end;
+			
+			// Update double-click tracking
+			PrevClickTime := NowTime;
+			PrevClickPos := P;
+			PrevClickChan := Chan;
+			PrevClickRow := Row;
+			
+			Editor.UpdateInfoLabels(False);
+		end;
 
 		mbMiddle:
+		begin
 			if Chan in [0..AMOUNT_CHANNELS-1] then
 			begin
 				Module.Channel[Chan].Enabled := not
 					Module.Channel[Chan].Enabled;
 				Editor.UpdateInfoLabels(False);
 			end;
+		end;
 
 		mbRight:
 			Result := False; // unhandled -> show menu
 
+	end;
+end;
+
+function TPatternEditor.GetChannelFromX(X: Integer): Integer;
+begin
+	if X < 3 then
+		Result := -1
+	else
+	begin
+		X := X - 3;
+		Result := X div (Width div 4);
+		if not (Result in [0..AMOUNT_CHANNELS-1]) then
+			Result := -1;
+	end;
+end;
+
+function TPatternEditor.GetRowFromY(Y: Integer): Integer;
+begin
+	Result := Y + ScrollPos;
+	if (Result < 0) or (Result > 63) then
+		Result := -1;
+end;
+
+procedure TPatternEditor.MouseMove(X, Y: Integer; P: TPoint);
+var
+	Chan, Row: Integer;
+begin
+	inherited MouseMove(X, Y, P);
+	
+	// Check if we should start dragging (mouse moved away from initial click)
+	if Screen <> nil then
+	begin
+		if Screen.MouseInfo.Capturing and (not MouseDragging) then
+		begin
+			Chan := GetChannelFromX(P.X);
+			Row := GetRowFromY(P.Y);
+			
+			// Only start dragging if mouse moved to a different channel or row
+			if (Chan >= 0) and (Row >= 0) and 
+			   ((Chan <> MouseDragStartChan) or (Row <> MouseDragStartRow)) then
+			begin
+				MouseDragging := True;
+			end;
+		end;
+		
+		// Update selection during drag
+		if MouseDragging then
+		begin
+			Chan := GetChannelFromX(P.X);
+			Row := GetRowFromY(P.Y);
+			
+			if (Chan >= 0) and (Row >= 0) then
+			begin
+				Cursor.Channel := Chan;
+				Cursor.Row := Row;
+				ValidateCursor;
+				
+				// Create/update selection during drag
+				Selection.Left  := Min(Cursor.Channel, MouseDragStart.X);
+				Selection.Right := Max(Cursor.Channel, MouseDragStart.X);
+				Selection.Top   := Min(Cursor.Row, MouseDragStart.Y);
+				Selection.Bottom := Max(Cursor.Row, MouseDragStart.Y);
+				
+				Paint;
+			end;
+		end;
+	end;
+end;
+
+function TPatternEditor.MouseUp(Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean;
+var
+	NowTime: TDateTime;
+begin
+	Result := inherited MouseUp(Button, X, Y, P);
+	
+	if (Button = mbLeft) then
+	begin
+		NowTime := Now;
+		
+		// If we were capturing but didn't actually drag, it was just a single click
+		if (Screen <> nil) and Screen.MouseInfo.Capturing and (not MouseDragging) then
+		begin
+			// Single click without drag - check if we preserved selection for potential double-click
+			// If enough time has passed (>= 500ms) since MouseDown, it's definitely not a double-click
+			// Clear the preserved selection if it matches what we preserved
+			if (PrevClickTime > 0) and 
+			   (MilliSecondsBetween(NowTime, PrevClickTime) >= 500) then
+			begin
+				// Too much time has passed, definitely not a double-click
+				// Clear selection if it was preserved for potential double-click
+				// Check if current selection matches what we would have preserved
+				if (Selection.Left = PrevClickChan) and (Selection.Right = PrevClickChan) and
+				   (Selection.Top = 0) and (Selection.Bottom = 63) then
+				begin
+					// This was a preserved selection, clear it now
+					Selection := Types.Rect(-1, -1, -1, -1);
+					Paint;
+				end;
+			end;
+		end;
+		
+		MouseDragging := False;
+		// Disable mouse capture
+		if Screen <> nil then
+			Screen.MouseInfo.Capturing := False;
+		Result := True;
 	end;
 end;
 
