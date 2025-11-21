@@ -56,6 +56,7 @@ type
 		PrevKeyTimeStamp: Uint32;
 		{$ENDIF}
 		Screens:	TObjectList<TCWEScreen>;
+		AutoSaveCounter: Integer;
 
 		procedure 	ModuleSpeedChanged(Speed, Tempo: Byte);
 		procedure	ModuleOrderChanged;
@@ -72,6 +73,9 @@ type
 		procedure	FlipFrame;
 		procedure	UpdateVUMeter(Len: DWord);
 		procedure 	UpdatePatternView;
+		procedure 	AutoSaveRecovery;
+		function 	GetRecoveryFilename: String;
+		function 	CheckRecoveryFile: Boolean; // Returns True if dialog was shown
 	public
 		Video:				TVideoInfo;
 		MessageTextTimer,
@@ -93,6 +97,7 @@ type
 					ModalResult: Integer; Data: Variant; Dlg: TCWEDialog);
 		procedure	OnKeyDown(var Key: Integer; Shift: TShiftState);
 		function	OnContextMenu(AddGlobal: Boolean): Boolean;
+		procedure	CleanupRecoveryFile;
 	end;
 
 
@@ -179,6 +184,21 @@ begin
 
 		ACTION_DELETEDIR:
 			FileScreen.DeleteDir(False);
+
+		ACTION_RESTORERECOVERY:
+			begin
+				if Button = btnYes then
+				begin
+					DoLoadModule(Data);
+					CleanupRecoveryFile;
+				end
+				else
+				begin
+					// User chose not to restore, delete recovery file and load empty module
+					CleanupRecoveryFile;
+					DoLoadModule('');
+				end;
+			end;
 
 	end;
 end;
@@ -367,6 +387,8 @@ procedure TWindow.DoLoadModule(const Filename: String);
 var
 	OK{, AltMethod}: Boolean;
 	TempModule: TPTModule;
+	RecoveryFilename: String;
+	FileTime: TDateTime;
 begin
 	TempModule := ResetModule;
 	//AltMethod := False;
@@ -420,6 +442,30 @@ begin
 		Editor.lblFilename.SetCaption(ExtractFilename(Filename), True);
 
 		Editor.Paint;
+
+		// Check for autosave file for this module
+		if (Filename <> '') and (ModalDialog.Dialog = nil) then
+		begin
+			RecoveryFilename := GetRecoveryFilename;
+			if (RecoveryFilename <> '') and FileExists(RecoveryFilename) then
+			begin
+				try
+					FileTime := FileDateToDateTime(FileAge(RecoveryFilename));
+					// Check if autosave is newer than the loaded file
+					if (FileTime > FileDateToDateTime(FileAge(Filename))) then
+					begin
+						ModalDialog.MessageDialog(ACTION_RESTORERECOVERY,
+							'Autosave Found',
+							Format('An autosave file was found from %s, which is newer than the loaded file.'#13 +
+								'Would you like to restore the autosave?',
+								[FormatDateTime('YYYY-mm-dd hh:nn:ss', FileTime)]),
+							[btnYes, btnNo], btnYes, DialogCallback, RecoveryFilename);
+					end;
+				except
+					// Ignore errors
+				end;
+			end;
+		end;
 
 		if (ImportedModule <> nil) and (ImportedModule.Conversion.TotalChannels > AMOUNT_CHANNELS) then
 			ImportedModule.ShowImportDialog
@@ -1426,6 +1472,8 @@ begin
 		{$IFDEF WINDOWS}
 		.SetInfo('Task priority', 0, 1, ['Normal', 'High'])
 		{$ENDIF};
+		Cfg.AddByte(Sect, 'AutosaveInterval', @Program_.AutosaveInterval, 2)
+		.SetInfo('Autosave interval', 0, 3, ['Disabled', '15 seconds', '30 seconds', '60 seconds']);
 
 		Sect := 'Display';
 		Cfg.AddByte(Sect, 'Scaling', @Display.Scaling, 2)
@@ -1506,6 +1554,7 @@ begin
 		Sect := 'Directory';
 		Cfg.AddString	(Sect, 'Modules', 		@Dirs.Modules, 			AppPath);
 		Cfg.AddString	(Sect, 'Samples', 		@Dirs.Samples, 			AppPath);
+		Cfg.AddString	(Sect, 'Autosave', 		@Dirs.Autosave, 			AppPath);
 		Cfg.AddByte		(Sect, 'SortMode',		@Dirs.FileSortMode,   	FILESORT_NAME).Max := FILESORT_EXT;
 		Cfg.AddByte		(Sect, 'SortModeS',		@Dirs.SampleSortMode, 	FILESORT_NAME).Max := FILESORT_EXT;
 
@@ -1569,6 +1618,8 @@ begin
 		Options.Dirs.Modules := AppPath;
 	if Options.Dirs.Samples = '' then
 		Options.Dirs.Samples := Options.Dirs.Modules;
+	if Options.Dirs.Autosave = '' then
+		Options.Dirs.Autosave := Options.Dirs.Modules;
 
 
 	// Init keyboard commands now so we can log any possible errors with
@@ -1771,7 +1822,14 @@ begin
 
 	ConfigScreen.Init(ConfigManager);
 
-	DoLoadModule('');
+	// Initialize recovery system
+	AutoSaveCounter := 0;
+
+	// Check for recovery file before loading new module
+	// If recovery file exists and user chooses to restore, DoLoadModule will be called from dialog callback
+	// Otherwise, load empty module
+	if not CheckRecoveryFile then
+		DoLoadModule('');
 
 	{$IFDEF LIMIT_KEYBOARD_EVENTS}
 	PrevKeyTimeStamp := 0;
@@ -1832,6 +1890,9 @@ begin
 			ConfigManager.Free;
 		end;
 
+		// Clean up recovery file on exit
+		CleanupRecoveryFile;
+
 		ContextMenu.Free;
 		Console.Free;
 		Screens.Free;
@@ -1871,7 +1932,187 @@ begin
 	HandleInput;
 	SyncTo60Hz;
 	ProcessMouseMovement;
+	
+	// Auto-save recovery file periodically
+	if Module.ShouldAutoSave and Module.Modified then
+	begin
+		Inc(AutoSaveCounter);
+		// Convert interval index to frames: 0=disabled, 1=900 (15s), 2=1800 (30s), 3=3600 (60s)
+		case Options.Program_.AutosaveInterval of
+			1: if AutoSaveCounter >= 900 then
+			begin
+				AutoSaveRecovery;
+				AutoSaveCounter := 0;
+			end;
+			2: if AutoSaveCounter >= 1800 then
+			begin
+				AutoSaveRecovery;
+				AutoSaveCounter := 0;
+			end;
+			3: if AutoSaveCounter >= 3600 then
+			begin
+				AutoSaveRecovery;
+				AutoSaveCounter := 0;
+			end;
+		end;
+	end
+	else
+		AutoSaveCounter := 0;
+	
 	FlipFrame;
+end;
+
+// ==========================================================================
+// Crash Recovery System
+// ==========================================================================
+
+function TWindow.GetRecoveryFilename: String;
+var
+	BaseFilename, Dir: String;
+begin
+	Result := '';
+	if Module = nil then Exit;
+	
+	// If module has a filename, use its directory; otherwise use configured autosave directory
+	if Module.Info.Filename <> '' then
+	begin
+		BaseFilename := ExtractFileName(Module.Info.Filename);
+		if BaseFilename = '' then
+			BaseFilename := 'untitled.mod';
+		Dir := ExtractFilePath(Module.Info.Filename);
+		if Dir = '' then
+		begin
+			// If no path in filename, use configured autosave directory
+			Dir := Options.Dirs.Autosave;
+			if Dir = '' then
+				Dir := Options.Dirs.Modules;
+			if Dir = '' then
+				Dir := AppPath;
+		end;
+	end
+	else
+	begin
+		// Module has no filename, use configured autosave directory
+		BaseFilename := 'untitled.mod';
+		Dir := Options.Dirs.Autosave;
+		if Dir = '' then
+			Dir := Options.Dirs.Modules;
+		if Dir = '' then
+			Dir := AppPath;
+	end;
+	
+	Dir := IncludeTrailingPathDelimiter(Dir);
+	Result := Dir + BaseFilename + '.autosave';
+end;
+
+procedure TWindow.AutoSaveRecovery;
+var
+	RecoveryFilename, OriginalFilename: String;
+begin
+	if Module = nil then Exit;
+	
+	RecoveryFilename := GetRecoveryFilename;
+	if RecoveryFilename = '' then Exit;
+	
+	// Only autosave if both ShouldAutoSave and Modified are true
+	if not (Module.ShouldAutoSave and Module.Modified) then Exit;
+	
+	try
+		// Save original filename before autosave (SaveToFile modifies Module.Info.Filename)
+		OriginalFilename := Module.Info.Filename;
+		
+		ForceDirectories(ExtractFilePath(RecoveryFilename));
+		Module.SaveToFile(RecoveryFilename);
+		
+		// Restore original filename so it doesn't get changed to the autosave filename
+		Module.Info.Filename := OriginalFilename;
+		
+		// Set ShouldAutoSave to false after autosave
+		Module.ShouldAutoSave := False;
+		
+		// Don't log autosave operations to keep the info log clean
+	except
+		// Silently fail - don't interrupt user's work
+		// Try to restore filename even if save failed
+		if Module <> nil then
+			Module.Info.Filename := OriginalFilename;
+	end;
+end;
+
+function TWindow.CheckRecoveryFile: Boolean;
+var
+	Dir, Mask, RecoveryFilename: String;
+	SearchRec: TSearchRec;
+	MostRecentFile: String;
+	MostRecentTime: TDateTime;
+	FileTime: TDateTime;
+begin
+	Result := False;
+	
+	// Get autosave directory
+	Dir := Options.Dirs.Autosave;
+	if Dir = '' then
+		Dir := Options.Dirs.Modules;
+	if Dir = '' then
+		Dir := AppPath;
+	Dir := IncludeTrailingPathDelimiter(Dir);
+	
+	// Search for .autosave files
+	Mask := Dir + '*.autosave';
+	MostRecentFile := '';
+	MostRecentTime := 0;
+	
+	if SysUtils.FindFirst(Mask, faAnyFile, SearchRec) = 0 then
+	begin
+		try
+			repeat
+				if (SearchRec.Attr and faDirectory) = 0 then
+				begin
+					RecoveryFilename := Dir + SearchRec.Name;
+					try
+						FileTime := FileDateToDateTime(FileAge(RecoveryFilename));
+						if (MostRecentFile = '') or (FileTime > MostRecentTime) then
+						begin
+							MostRecentFile := RecoveryFilename;
+							MostRecentTime := FileTime;
+						end;
+					except
+						// Skip files we can't read
+					end;
+				end;
+			until SysUtils.FindNext(SearchRec) <> 0;
+		finally
+			SysUtils.FindClose(SearchRec);
+		end;
+	end;
+	
+	// If we found a recovery file, offer to restore it
+	if MostRecentFile <> '' then
+	begin
+		ModalDialog.MessageDialog(ACTION_RESTORERECOVERY,
+			'Crash Recovery',
+			Format('An autosave file was found from %s.'#13 +
+				'Would you like to restore your unsaved work?',
+				[FormatDateTime('YYYY-mm-dd hh:nn:ss', MostRecentTime)]),
+			[btnYes, btnNo], btnYes, DialogCallback, MostRecentFile);
+		Result := True; // Dialog was shown
+	end;
+end;
+
+procedure TWindow.CleanupRecoveryFile;
+var
+	RecoveryFilename: String;
+begin
+	RecoveryFilename := GetRecoveryFilename;
+	if (RecoveryFilename <> '') and FileExists(RecoveryFilename) then
+	begin
+		try
+			SysUtils.DeleteFile(RecoveryFilename);
+			LogIfDebug('Cleaned up recovery file: ' + RecoveryFilename);
+		except
+			// Ignore errors
+		end;
+	end;
 end;
 
 function TWindow.OnContextMenu(AddGlobal: Boolean): Boolean;

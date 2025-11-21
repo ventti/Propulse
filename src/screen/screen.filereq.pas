@@ -1074,9 +1074,15 @@ end;
 
 procedure TModFileScreen.SaveFile(DoDialog: Boolean = True);
 var
-	Filename, StrOW: String;
+	Filename, StrOW, FileNameOnly: String;
 begin
 	Filename := GetSelectedFile(True, True);
+	
+	// Validate filename: check if empty or if path is a directory
+	FileNameOnly := ExtractFilename(Filename);
+	if (Trim(FileNameOnly) = '') or DirectoryExists(Filename) then
+		Exit;
+	
 	if (DoDialog) and (FileExists(Filename)) then
 	begin
 		StrOW := Format('Overwrite file "%s"?', [ExtractFilename(Filename)]);
