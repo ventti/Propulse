@@ -56,6 +56,7 @@ const
 	ACTION_RENAMEBOOKMARK	= 11;
 	ACTION_CREATEDIR		= 12;
 	ACTION_MODULEIMPORTED	= 13;
+	ACTION_RESTORERECOVERY	= 14;
 
 type
 	// hacks to allow pointer maths on data
@@ -80,6 +81,10 @@ type
 	TPoroTrackerConfiguration = packed record
 
 		HighPriority: 		Boolean;
+
+		Program_: packed record
+			AutosaveInterval:	Byte;		// autosave interval index: 0=disabled, 1=15s, 2=30s, 3=60s
+		end;
 
 		Features: packed record
 			SOXR: Boolean;
@@ -141,6 +146,7 @@ type
 			SampleSortMode: 		Byte;
 			Modules: 				String;
 			Samples: 				String;
+			Autosave: 				String;
 		end;
 
 		Midi: packed record

@@ -29,7 +29,9 @@ uses
 
 procedure TLogScreen.Log(const Msg: AnsiString);
 var
-	S: AnsiString;
+	S, FirstLine, Rest, Timestamp: AnsiString;
+	LineBreakPos: Integer;
+	ColorCode: Integer;
 begin
 	if Msg = '-' then
 	begin
@@ -42,13 +44,48 @@ begin
 	begin
 		S := Copy(Msg, 3, Length(Msg));
 		if not ((LastLoggedEmpty) and (S = '')) then
-			Memo.Add(' ' + S, StrToInt(Copy(Msg, 1, 2)));
+		begin
+			ColorCode := StrToInt(Copy(Msg, 1, 2));
+			// Add timestamp to first line only
+			LineBreakPos := Pos(#13#10, S);
+			if LineBreakPos = 0 then
+				LineBreakPos := Pos(#10, S);
+			if LineBreakPos > 0 then
+			begin
+				FirstLine := Copy(S, 1, LineBreakPos - 1);
+				Rest := Copy(S, LineBreakPos, MaxInt);
+				Timestamp := FormatDateTime('hh:nn:ss', Now) + ' ';
+				Memo.Add(' ' + Timestamp + FirstLine + Rest, ColorCode);
+			end
+			else
+			begin
+				Timestamp := FormatDateTime('hh:nn:ss', Now) + ' ';
+				Memo.Add(' ' + Timestamp + S, ColorCode);
+			end;
+		end;
 	end
 	else
 	begin
 		S := Msg;
 		if not ((LastLoggedEmpty) and (S = '')) then
-			Memo.Add(' ' + S);
+		begin
+			// Add timestamp to first line only
+			LineBreakPos := Pos(#13#10, S);
+			if LineBreakPos = 0 then
+				LineBreakPos := Pos(#10, S);
+			if LineBreakPos > 0 then
+			begin
+				FirstLine := Copy(S, 1, LineBreakPos - 1);
+				Rest := Copy(S, LineBreakPos, MaxInt);
+				Timestamp := FormatDateTime('hh:nn:ss', Now) + ' ';
+				Memo.Add(' ' + Timestamp + FirstLine + Rest);
+			end
+			else
+			begin
+				Timestamp := FormatDateTime('hh:nn:ss', Now) + ' ';
+				Memo.Add(' ' + Timestamp + S);
+			end;
+		end;
 	end;
 
 	LastLoggedEmpty := (S = '');

@@ -1,5 +1,5 @@
 (*
- * Based on PT2PLAY v1.3b by Olav "8bitbubsy" Sørensen - http://16-bits.org
+ * Based on PT2PLAY v1.3b by Olav "8bitbubsy" Sï¿½rensen - http://16-bits.org
  * BLEP (Band-Limited Step) and filter routines by aciddose
  *
  * Delphi port by hukka, April-August 2016
@@ -247,6 +247,7 @@ type
 		NormFactor: 		Single; 	// Sound amplification factor
 
 		Modified,
+		ShouldAutoSave,
 		PosJumpAssert,
 		PBreakFlag: 		Boolean;
 
@@ -966,6 +967,7 @@ begin
 	Log('-');
 
 	Warnings := False;
+	ShouldAutoSave := False;
 	Result := True;
 end;
 
@@ -1767,6 +1769,7 @@ Done:
 
 	ModFile.Free;
 	Modified := False;
+	ShouldAutoSave := False;
 
 	if TempFilename <> '' then
 		DeleteFile(PChar(TempFilename));
@@ -1833,6 +1836,8 @@ begin
 	if Assigned(OnModified) then
 		OnModified(B, Force);
 	Modified := B;
+	if B then
+		ShouldAutoSave := True;
 end;
 
 constructor TPTModule.Create(aIsMaster, aSamplesOnly: Boolean);
@@ -1864,6 +1869,7 @@ begin
 
 	Warnings := False;
 	Modified := False;
+	ShouldAutoSave := False;
 
 	PreventClipping := True;
 	RenderMode := RENDER_NONE;
