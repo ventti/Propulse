@@ -249,7 +249,7 @@ implementation
 uses
 	MainWindow, Math,
 	CWE.Widgets.Text, CWE.Widgets.Scrollers, CWE.Dialogs, CWE.ExternalAPI,
-	Screen.Editor, ProTracker.Editor; // !!! so dumb
+	Screen.Editor, ProTracker.Editor, ProTracker.Player; // !!! so dumb
 
 // ==========================================================================
 // Utility
@@ -284,12 +284,14 @@ begin
 	Console.FillRect(CurrentScreen.Rect, ' ', 15, TConsole.COLOR_PANEL);
 
 	if CurrentScreen = Editor then
-		Editor.SetSample(CurrentSample);
+		if Assigned(Module) then
+			Editor.SetSample(CurrentSample);
 
 	CurrentScreen.Paint;
 	CurrentScreen.Show;
 
-	Window.PlayModeChanged;
+	if Assigned(Module) then
+		Window.PlayModeChanged;
 	//DisableDisplayUpdates := False;
 	//UpdateDisplay;
 	//ChangeMousePointer;

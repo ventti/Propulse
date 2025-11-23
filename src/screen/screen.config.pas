@@ -16,6 +16,10 @@ const
 
 type
 	TCWEConfigList = class(TCWETwoColumnList)
+	private
+		procedure 	Dialog_ConfigItemList_Generic;
+		procedure 	ConfigItemDialogCallback(ID: Word; Button: TDialogButton;
+					Tag: Integer; Data: Variant; Dlg: TCWEDialog);
 	public
 		ConfigManager: TConfigurationManager;
 
@@ -212,7 +216,7 @@ begin
 		for C := 0 to 2 do
 			PaletteConfig.AddByte('Palette', S + Cn[C+1],
 				@PaletteRGB[P, C], PaletteRGB[P, C]).
-				SetInfo('§', 0, 63, [], ColorChanged, '%.2d');
+				SetInfo('ï¿½', 0, 63, [], ColorChanged, '%.2d');
 	end;
 
 	// ==============================================================
@@ -221,11 +225,11 @@ begin
 
 	PaletteConfig.AddByte(S, 'Foreground',
 		@TCWEList.COL_LIST_FORE, 3).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Background',
 		@TCWEList.COL_LIST_BACK, 0).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 *)
 
 	// ==============================================================
@@ -234,27 +238,27 @@ begin
 
 	PaletteConfig.AddByte(S, 'Blank',
 		@Console.COLOR_BLANK, Console.COLOR_BLANK).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 {	PaletteConfig.AddByte(S, 'Text',
 		@Console.COLOR_TEXT, Console.COLOR_TEXT).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');}
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');}
 
 	PaletteConfig.AddByte(S, 'Panel',
 		@Console.COLOR_PANEL, Console.COLOR_PANEL).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, '3D Dark',
 		@Console.COLOR_3DDARK, Console.COLOR_3DDARK).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, '3D Light',
 		@Console.COLOR_3DLIGHT, Console.COLOR_3DLIGHT).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Light',
 		@Console.COLOR_LIGHT, Console.COLOR_LIGHT).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	// ==============================================================
 
@@ -323,27 +327,27 @@ begin
 
 	PaletteConfig.AddByte(S, 'Gutter',
 		@TCWEScrollbar.COLOR_SB_GUTTER, 15).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Thumb',
 		@TCWEScrollbar.COLOR_SB_THUMB, 2).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Button',
 		@TCWEScrollbar.COLOR_SB_BUTTON, 2).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Icon',
 		@TCWEScrollbar.COLOR_SB_ICON, 0).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Hover',
 		@TCWEScrollbar.COLOR_SB_HOVER, 3).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Active',
 		@TCWEScrollbar.COLOR_SB_ACTIVE, 2).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	// ==============================================================
 
@@ -353,45 +357,45 @@ begin
 
 	PaletteConfig.AddByte(S, 'File Size',
 		@TFileScreen.COLOR_FILE_SIZE, 2).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'File Date',
 		@TFileScreen.COLOR_FILE_DATE, 10).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'PT Module',
 		@TFileScreen.COLOR_FILE_PT, 2).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Other Module',
 		@TFileScreen.COLOR_FILE_NONPT, 3).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Sample File',
 		@TFileScreen.COLOR_FILE_SAMPLE, 6).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Empty Sample',
 		@TFileScreen.COLOR_FILE_EMPTYSAMPLE, 15).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	// Directory list
 
 	PaletteConfig.AddByte(S, 'Bookmark',
 		@TFileScreen.COLOR_FG_BOOKMARK, 10).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Drive',
 		@TFileScreen.COLOR_FG_DRIVE, 2).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'ParentDir',
 		@TFileScreen.COLOR_FG_PARENTDIR, 6).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Directory',
 		@TFileScreen.COLOR_FG_DIR, 3).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	// ==============================================================
 
@@ -399,19 +403,19 @@ begin
 
 	PaletteConfig.AddByte(S, 'Foreground',
 		@Options.Display.Colors.Scope.Foreground, 5).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Background',
 		@Options.Display.Colors.Scope.Background, 0).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Muted channel',
 		@Options.Display.Colors.Scope.Muted, 15).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Clipped bg',
 		@Options.Display.Colors.Scope.Clipped, 13).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	// ==============================================================
 
@@ -419,15 +423,15 @@ begin
 
 	PaletteConfig.AddByte(S, 'Background',
 		@TSampleView.COLOR_BACKGROUND, 0).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Waveform',
 		@TSampleView.COLOR_WAVEFORM, 6).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Waveform peaks',
 		@TSampleView.COLOR_WAVEFORM_PEAKS, 15).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Overrun',
 		@TSampleView.COLOR_OVERRUN, 4).
@@ -435,27 +439,27 @@ begin
 
 	PaletteConfig.AddByte(S, 'Center line',
 		@TSampleView.COLOR_CENTERLINE, 15).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Loop point',
 		@TSampleView.COLOR_LOOP, 5).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Loop hover',
 		@TSampleView.COLOR_LOOP_HOVER, 11).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Playback pos.',
 		@TSampleView.COLOR_PLAYBACK, 11).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Selection fore',
 		@TSampleView.COLOR_SEL_FORE, 11).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	PaletteConfig.AddByte(S, 'Selection back',
 		@TSampleView.COLOR_SEL_BACK, 13).
-		SetInfo('§', 0, 15, [], ColorChanged, '%.2d');
+		SetInfo('ï¿½', 0, 15, [], ColorChanged, '%.2d');
 
 	// ==============================================================
 
@@ -903,7 +907,13 @@ begin
 
 		// choose config item value from list
 		ctrlkeyRETURN:
-			ConfigScreen.Dialog_ConfigItemList;
+		begin
+			if Assigned(ConfigScreen) then
+				ConfigScreen.Dialog_ConfigItemList
+			else
+				Dialog_ConfigItemList_Generic;
+			Result := True;
+		end;
 
 		// context help for config list items
 		ctrlkeyHELP:
@@ -923,6 +933,119 @@ begin
 
 	if not Result then
 		Result := inherited;
+end;
+
+procedure TCWEConfigList.ConfigItemDialogCallback(ID: Word; Button: TDialogButton;
+	Tag: Integer; Data: Variant; Dlg: TCWEDialog);
+var
+	CI: TConfigItem;
+	LI: TCWEListItem;
+	ValList: TCWEList;
+	i: Integer;
+begin
+	// Only process when dialog is still open (Dlg <> nil) and button is OK/Yes
+	if (Dlg = nil) or (not (Button in [btnYes, btnOK])) then Exit;
+
+	LI := Items[ItemIndex];
+	CI := TConfigItem(LI.ObjData);
+	if CI = nil then Exit;
+
+	case ID of
+		ACTION_SELCONFIGITEM:
+		begin
+			ValList := TCWEList(Dlg.Dialog.FindControl('Valuelist'));
+			if ValList <> nil then
+			begin
+				CI.SetValue(ValList.ItemIndex + CI.Min);
+				ItemFromConfig(LI);
+				Paint;
+				if Assigned(CI.Callback) then CI.Callback;
+			end;
+		end;
+
+		ACTION_SLIDERCONFIGITEM:
+		begin
+			if GetAskedValue(i) then
+			begin
+				CI.SetValue(i);
+				ItemFromConfig(LI);
+				Paint;
+				if Assigned(CI.Callback) then CI.Callback;
+			end;
+		end;
+	end;
+end;
+
+procedure TCWEConfigList.Dialog_ConfigItemList_Generic;
+var
+	CI: TConfigItem;
+	LI: TCWEListItem;
+	sl: TStringList;
+	Idx, i, W, H: Integer;
+	B: Boolean;
+	ValList: TCWEList;
+begin
+	if ItemIndex < 0 then Exit;
+	LI := Items[ItemIndex];
+	CI := TConfigItem(LI.ObjData);
+	if not Assigned(CI) then Exit;
+
+	if CI is TConfigItemInteger then
+	begin
+		AskValue(ACTION_SLIDERCONFIGITEM, 'Modify value',
+			CI.Min, CI.Max, TConfigItemInteger(CI).Value^,
+			Self.ConfigItemDialogCallback);
+		Exit;
+	end;
+
+	sl := TStringList.Create;
+	Idx := CI.ListValues(sl);
+
+	if sl.Count > 0 then
+	begin
+		W := 0;
+		for i := 0 to sl.Count-1 do
+		begin
+			H := Length(sl[i]);
+			if H > W then W := H;
+		end;
+
+		W := Min(W + 3, Console.Width - 4);
+		if W mod 2 <> 0 then Inc(W);
+		W := Max(W, 20);
+		H := Min(sl.Count + 5, Console.Height - 8);
+
+		ModalDialog.CreateDialog(ACTION_SELCONFIGITEM, Bounds(
+			(Console.Width div 2) - (W div 2),
+			(Console.Height div 2) - (H div 2), W, H), 'Select value');
+
+		// figure out if a scrollbar is needed in the list. if it is,
+		// the scrollbar is drawn outside of the list widget so make room for it
+		B := (sl.Count > H-5);
+		i := W - 1;
+		if B then Dec(i);
+
+		ValList := TCWEList.Create(ModalDialog.Dialog, '', 'Valuelist', Types.Rect(1, 2, i, H-3), True);
+		ValList.CanCloseDialog := True;
+		ValList.Scrollbar.Visible := B;
+		ValList.Border.Pixel := True;
+
+		for i := 0 to sl.Count-1 do
+			ValList.AddItem(sl[i]);
+		ValList.Select(Idx);
+
+		with ModalDialog do
+		begin
+			AddResultButton(btnOK,     'OK',     1,   H-2, True);
+			AddResultButton(btnCancel, 'Cancel', W-9, H-2, True);
+
+			ButtonCallback := Self.ConfigItemDialogCallback;
+			Dialog.ActivateControl(ValList);
+			Show;
+		end;
+	end;
+
+	sl.Free;
 end;
 
 function TCWEConfigList.MouseWheel(Shift: TShiftState; WheelDelta: Integer; P: TPoint): Boolean;
@@ -951,7 +1074,14 @@ begin
 	if WheelDelta > 0 then
 		CI.ModifyValue(+CI.Step * Modifier);
 
-	ConfigScreen.ValueChanged;
+	if Assigned(ConfigScreen) then
+		ConfigScreen.ValueChanged
+	else
+	begin
+		ItemFromConfig(LI);
+		Paint;
+		if Assigned(CI.Callback) then CI.Callback;
+	end;
 	Result := True;
 end;
 

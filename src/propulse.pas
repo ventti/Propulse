@@ -24,7 +24,7 @@ program Propulse;
 
 uses
 	{$IFDEF UNIX} cthreads, Classes, SysUtils, {$ENDIF}
-	MainWindow;
+	MainWindow, Screen.Log;
 
 	{$IFDEF UNIX}
 	// on Unix we need to initialize the threading system before
@@ -38,6 +38,10 @@ uses
 		begin
 		end;
 	{$ENDIF}
+
+var
+	CrashLog: TextFile;
+	LogFile: String;
 
 begin
 	{$IFNDEF WINDOWS}
@@ -53,11 +57,82 @@ begin
 	SetHeapTraceOutput('trace.log');
 	{$ENDIF}
 
-	Window := TWindow.Create;
+	try
+		Window := TWindow.Create;
 
-		while not QuitFlag do
-			Window.ProcessFrame;
-
-	Window.Free;
+		try
+			while not QuitFlag do
+			begin
+				try
+					Window.ProcessFrame;
+				except
+					on E: Exception do
+					begin
+						WriteLn(StdErr, '========================================');
+						WriteLn(StdErr, 'Exception in ProcessFrame');
+						WriteLn(StdErr, '========================================');
+						WriteLn(StdErr, 'Exception: ', E.ClassName);
+						WriteLn(StdErr, 'Message: ', E.Message);
+						{$IFDEF UNIX}
+						WriteLn(StdErr, 'Stack trace:');
+						DumpExceptionBackTrace(StdErr);
+						{$ENDIF}
+						// Try to log to file if possible
+						try
+							if Assigned(LogScreen) then
+								LogScreen.Log('[FATAL] Exception in ProcessFrame: ' + E.ClassName + ': ' + E.Message);
+						except
+							// Ignore logging errors
+						end;
+						raise; // Re-raise to show crash dialog
+					end;
+				end;
+			end;
+		finally
+			if Assigned(Window) then
+				Window.Free;
+		end;
+	except
+		on E: Exception do
+		begin
+			WriteLn(StdErr, '========================================');
+			WriteLn(StdErr, 'FATAL EXCEPTION');
+			WriteLn(StdErr, '========================================');
+			WriteLn(StdErr, 'Exception: ', E.ClassName);
+			WriteLn(StdErr, 'Message: ', E.Message);
+			{$IFDEF UNIX}
+			WriteLn(StdErr, '');
+			WriteLn(StdErr, 'Stack trace:');
+			WriteLn(StdErr, '----------------------------------------');
+			DumpExceptionBackTrace(StdErr);
+			WriteLn(StdErr, '----------------------------------------');
+			{$ENDIF}
+			// Write crash log to file
+			try
+				LogFile := ExtractFilePath(ParamStr(0)) + 'crash.log';
+				AssignFile(CrashLog, LogFile);
+				Rewrite(CrashLog);
+				WriteLn(CrashLog, 'Propulse Crash Report');
+				WriteLn(CrashLog, '====================');
+				WriteLn(CrashLog, 'Time: ', FormatDateTime('YYYY-mm-dd hh:nn:ss', Now));
+				WriteLn(CrashLog, 'Exception: ', E.ClassName);
+				WriteLn(CrashLog, 'Message: ', E.Message);
+				{$IFDEF UNIX}
+				WriteLn(CrashLog, '');
+				WriteLn(CrashLog, 'Stack trace:');
+				WriteLn(CrashLog, '----------------------------------------');
+				DumpExceptionBackTrace(CrashLog);
+				WriteLn(CrashLog, '----------------------------------------');
+				{$ENDIF}
+				CloseFile(CrashLog);
+				WriteLn(StdErr, '');
+				WriteLn(StdErr, 'Crash log written to: ', LogFile);
+			except
+				on F: Exception do
+					WriteLn(StdErr, 'Failed to write crash log: ', F.Message);
+			end;
+			Halt(1);
+		end;
+	end;
 end.
 

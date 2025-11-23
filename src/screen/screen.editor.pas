@@ -1081,6 +1081,8 @@ end;
 
 procedure TEditorScreen.SetSample(i: Integer = -1);
 begin
+	if not Assigned(Module) then Exit;
+	
 	if i in [1..31] then
 		CurrentSample := i
 	else

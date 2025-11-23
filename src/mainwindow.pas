@@ -189,8 +189,19 @@ begin
 			begin
 				if Button = btnYes then
 				begin
-					DoLoadModule(Data);
-					CleanupRecoveryFile;
+					try
+						DoLoadModule(Data);
+						CleanupRecoveryFile;
+					except
+						// If loading recovery file fails, delete it and load empty module
+						Log(TEXT_FAILURE + 'Failed to restore recovery file. File may be corrupted.');
+						try
+							CleanupRecoveryFile;
+						except
+							// Ignore cleanup errors
+						end;
+						DoLoadModule('');
+					end;
 				end
 				else
 				begin
@@ -209,7 +220,8 @@ end;
 
 procedure ApplyAudioSettings;
 begin
-	Module.ApplyAudioSettings;
+	if Assigned(Module) then
+		Module.ApplyAudioSettings;
 end;
 
 {$IFDEF MIDI}
@@ -284,6 +296,7 @@ var
 begin
 	// this hack will update the background screen (vumeters etc.) if a module
 	// is currently playing underneath a modal dialog
+	if not Assigned(Module) then Exit;
 	InModal := (ModalDialog.Dialog <> nil) and (Module.PlayMode <> PLAY_STOPPED);
 	if InModal then
 		CurrentScreen := ModalDialog.PreviousScreen;
@@ -326,6 +339,7 @@ end;
 
 procedure TWindow.UpdatePatternView;
 begin
+	if not Assigned(Module) then Exit;
 	if CurrentScreen = Editor then
 	with Editor do
 	begin
@@ -358,6 +372,7 @@ var
 	S: AnsiString;
 begin
 	if CurrentScreen <> Editor then Exit;
+	if not Assigned(Module) then Exit;
 
 	case Module.PlayMode of
 		PLAY_PATTERN:	S := #16 + ' Pattern';
@@ -395,13 +410,24 @@ begin
 
 	if Filename <> '' then
 	begin
-		OK := TempModule.LoadFromFile(Filename);
-		if not OK then // try again in case file is broken
-		begin
+		try
+			OK := TempModule.LoadFromFile(Filename);
+			if not OK then // try again in case file is broken
+			begin
+				TempModule.Warnings := False;
+				if Assigned(Module) then
+					Module.Warnings := False;
+				{AltMethod := True;
+				OK := TempModule.LoadFromFile(Filename, True);}
+			end;
+		except
+			// Handle corrupted or invalid files gracefully
+			OK := False;
 			TempModule.Warnings := False;
-			Module.Warnings := False;
-			{AltMethod := True;
-			OK := TempModule.LoadFromFile(Filename, True);}
+			if Assigned(Module) then
+				Module.Warnings := False;
+			Log(TEXT_FAILURE + 'Failed to load file: ' + Filename);
+			Log('File may be corrupted or invalid.');
 		end;
 	end
 	else
@@ -1836,7 +1862,8 @@ begin
 	{$ENDIF}
 	MessageTextTimer := -1;
 	Initialized := True;
-	Module.SetModified(False);
+	if Assigned(Module) then
+		Module.SetModified(False);
 
 	{$IFDEF WINDOWS}
 {!!!
@@ -1863,7 +1890,12 @@ begin
 	if Options.Display.ShowSplashScreen then
 		ChangeScreen(TCWEScreen(SplashScreen))
 	else
+	begin
+		// Ensure Module is initialized before changing to Editor screen
+		if not Assigned(Module) then
+			DoLoadModule('');
 		ChangeScreen(TCWEScreen(Editor));
+	end;
 
 	Console.Paint;
 
