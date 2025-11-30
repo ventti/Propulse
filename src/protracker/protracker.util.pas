@@ -59,6 +59,14 @@ const
 	ACTION_RESTORERECOVERY	= 14;
 
 type
+	// Autosave interval enumeration
+	TAutosaveInterval = (
+		aiDisabled = 0,
+		ai15Seconds = 1,
+		ai30Seconds = 2,
+		ai60Seconds = 3
+	);
+
 	// hacks to allow pointer maths on data
 	TArrayOfByte 		= array [0..65535] of Byte;
 	TArrayOfShortInt 	= array [0..65535] of ShortInt;
@@ -193,6 +201,9 @@ const
 	SELECT_PREV   = -1;
 	SELECT_NEXT   = -2;
 	SELECT_TOGGLE = -3;
+
+	// Autosave interval frame counts (60 FPS): 0=disabled, 1=900 (15s), 2=1800 (30s), 3=3600 (60s)
+	AUTOSAVE_INTERVAL_FRAMES: array[0..3] of Integer = (0, 900, 1800, 3600);
 
 	// ========================================================================
 	// Alphabet

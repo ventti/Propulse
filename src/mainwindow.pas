@@ -1966,26 +1966,16 @@ begin
 	ProcessMouseMovement;
 	
 	// Auto-save recovery file periodically
-	if Module.ShouldAutoSave and Module.Modified then
+	// Only proceed if autosave is enabled (interval > 0)
+	if (Options.Program_.AutosaveInterval > 0) and Module.ShouldAutoSave and Module.Modified then
 	begin
 		Inc(AutoSaveCounter);
-		// Convert interval index to frames: 0=disabled, 1=900 (15s), 2=1800 (30s), 3=3600 (60s)
-		case Options.Program_.AutosaveInterval of
-			1: if AutoSaveCounter >= 900 then
-			begin
-				AutoSaveRecovery;
-				AutoSaveCounter := 0;
-			end;
-			2: if AutoSaveCounter >= 1800 then
-			begin
-				AutoSaveRecovery;
-				AutoSaveCounter := 0;
-			end;
-			3: if AutoSaveCounter >= 3600 then
-			begin
-				AutoSaveRecovery;
-				AutoSaveCounter := 0;
-			end;
+		// Check if autosave interval has been reached
+		if (Options.Program_.AutosaveInterval <= High(AUTOSAVE_INTERVAL_FRAMES)) and
+		   (AutoSaveCounter >= AUTOSAVE_INTERVAL_FRAMES[Options.Program_.AutosaveInterval]) then
+		begin
+			AutoSaveRecovery;
+			AutoSaveCounter := 0;
 		end;
 	end
 	else
@@ -2042,6 +2032,9 @@ var
 	RecoveryFilename, OriginalFilename: String;
 begin
 	if Module = nil then Exit;
+	
+	// Only autosave if module has been saved at least once (has a filename)
+	if Module.Info.Filename = '' then Exit;
 	
 	RecoveryFilename := GetRecoveryFilename;
 	if RecoveryFilename = '' then Exit;
@@ -2118,7 +2111,7 @@ begin
 		end;
 	end;
 	
-	// If we found a recovery file, offer to restore it
+	// If we found a valid recovery file, offer to restore it
 	if MostRecentFile <> '' then
 	begin
 		ModalDialog.MessageDialog(ACTION_RESTORERECOVERY,
