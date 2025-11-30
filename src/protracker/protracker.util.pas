@@ -67,6 +67,13 @@ type
 		ai60Seconds = 3
 	);
 
+	// Autosave interval information record
+	TAutosaveIntervalInfo = record
+		Value: Byte;		// Configuration value (0-3)
+		Frames: Integer;	// Frame count at 60 FPS
+		Label: String;		// Display label
+	end;
+
 	// hacks to allow pointer maths on data
 	TArrayOfByte 		= array [0..65535] of Byte;
 	TArrayOfShortInt 	= array [0..65535] of ShortInt;
@@ -202,8 +209,13 @@ const
 	SELECT_NEXT   = -2;
 	SELECT_TOGGLE = -3;
 
-	// Autosave interval frame counts (60 FPS): 0=disabled, 1=900 (15s), 2=1800 (30s), 3=3600 (60s)
-	AUTOSAVE_INTERVAL_FRAMES: array[0..3] of Integer = (0, 900, 1800, 3600);
+	// Autosave interval definitions - single source of truth for all autosave interval data
+	AUTOSAVE_INTERVALS: array[TAutosaveInterval] of TAutosaveIntervalInfo = (
+		(Value: 0; Frames: 0;      Label: 'Disabled'),
+		(Value: 1; Frames: 900;   Label: '15 seconds'),
+		(Value: 2; Frames: 1800;  Label: '30 seconds'),
+		(Value: 3; Frames: 3600;  Label: '60 seconds')
+	);
 
 	// ========================================================================
 	// Alphabet
@@ -682,6 +694,34 @@ end;
 function GetPtr32(const S: PArrayOfByte): Cardinal;
 begin
 	Result := (S[0] shl 24) + (S[1] shl 16) + (S[2] shl 8) + S[3];
+end;
+
+// ========================================================================
+// Autosave interval helper functions
+// ========================================================================
+
+function GetAutosaveIntervalFrames(IntervalValue: Byte): Integer;
+begin
+	if IntervalValue <= Ord(High(TAutosaveInterval)) then
+		Result := AUTOSAVE_INTERVALS[TAutosaveInterval(IntervalValue)].Frames
+	else
+		Result := 0;
+end;
+
+
+function IsValidAutosaveInterval(IntervalValue: Byte): Boolean;
+begin
+	Result := IntervalValue <= Ord(High(TAutosaveInterval));
+end;
+
+// Helper to get autosave interval labels as typed array for settings UI
+// This extracts labels from AUTOSAVE_INTERVALS to ensure consistency
+function GetAutosaveIntervalLabels: array[TAutosaveInterval] of AnsiString;
+var
+	i: TAutosaveInterval;
+begin
+	for i := Low(TAutosaveInterval) to High(TAutosaveInterval) do
+		Result[i] := AUTOSAVE_INTERVALS[i].Label;
 end;
 
 

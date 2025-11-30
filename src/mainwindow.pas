@@ -1499,7 +1499,7 @@ begin
 		.SetInfo('Task priority', 0, 1, ['Normal', 'High'])
 		{$ENDIF};
 		Cfg.AddByte(Sect, 'AutosaveInterval', @Program_.AutosaveInterval, 2)
-		.SetInfo('Autosave interval', 0, 3, ['Disabled', '15 seconds', '30 seconds', '60 seconds']);
+		.SetInfo('Autosave interval', 0, Ord(High(TAutosaveInterval)), GetAutosaveIntervalLabels);
 
 		Sect := 'Display';
 		Cfg.AddByte(Sect, 'Scaling', @Display.Scaling, 2)
@@ -1971,8 +1971,8 @@ begin
 	begin
 		Inc(AutoSaveCounter);
 		// Check if autosave interval has been reached
-		if (Options.Program_.AutosaveInterval <= High(AUTOSAVE_INTERVAL_FRAMES)) and
-		   (AutoSaveCounter >= AUTOSAVE_INTERVAL_FRAMES[Options.Program_.AutosaveInterval]) then
+		if IsValidAutosaveInterval(Options.Program_.AutosaveInterval) and
+		   (AutoSaveCounter >= GetAutosaveIntervalFrames(Options.Program_.AutosaveInterval)) then
 		begin
 			AutoSaveRecovery;
 			AutoSaveCounter := 0;
