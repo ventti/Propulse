@@ -2,13 +2,34 @@
 
 ## Commit Message Conventions
 
-When making commits, follow these rules:
+When making commits (especially when the AI agent generates commit messages), follow these rules:
+
+### Format Rules
 
 1. **Use lowercase** - All commit messages should be in lowercase
-2. **Present tense imperative** - Use verbs like "add", "fix", "update", "improve", "extend", "toggle", "remove", etc.
-3. **Be concise and descriptive** - Clearly describe what the commit does
+2. **Present tense imperative** - Use verbs like "add", "fix", "update", "improve", "extend", "toggle", "remove", "refactor", "enable", "disable", etc.
+3. **Be concise and descriptive** - Clearly describe what the commit does, focusing on the main change or purpose
 4. **No period at the end** - Do not end commit messages with a period
-5. **Optional colon for detail** - Use a colon to add detail when helpful (e.g., "improve orderlist: show dots...")
+5. **Optional colon for detail** - Use a colon to add detail when helpful (e.g., "improve orderlist: show dots for unused entries and auto-expand on input")
+
+### AI Agent Commit Message Generation
+
+When the AI agent generates commit messages:
+
+1. **Analyze the changes** - Review `git diff` or `git status` to understand what files were modified and what the changes accomplish
+2. **Identify the main purpose** - Determine the primary effect or purpose of the changes (e.g., "add feature X", "fix bug Y", "improve Z")
+3. **Use appropriate verb** - Choose a verb that accurately describes the action:
+   - `add` - for new features, files, or functionality
+   - `fix` - for bug fixes or corrections
+   - `update` - for version bumps, dependency updates, or modifications to existing features
+   - `improve` - for enhancements or optimizations
+   - `extend` - for adding to existing functionality
+   - `refactor` - for code restructuring without changing behavior
+   - `remove` - for deleting features or code
+   - `enable`/`disable` - for feature flags or build options
+   - `toggle` - for switching between states
+4. **Be specific** - Include the component or area affected (e.g., "pattern editor", "orderlist", "sample editor", "Makefile")
+5. **Add detail when needed** - Use a colon to provide additional context if the main message needs clarification
 
 ### Examples
 
@@ -20,11 +41,16 @@ Good commit messages:
 - `fix soxr detection on macOS by preventing automatic disable`
 - `update version to 0.10.0 and change URL to github`
 - `remove windows-x86 and linux-x86 support`
+- `add null checks and exception handling for module operations`
+- `refactor autosave interval to unified data structure`
+- `fix autosave conditions and refactor interval checking`
 
 Bad commit messages:
 - `Added undo/redo system` (wrong tense, capitalized)
 - `Fixed bug.` (capitalized, has period)
 - `Update Makefile` (too vague)
+- `Changes` (not descriptive)
+- `Fixed stuff` (too vague, capitalized)
 
 ## Code Style
 
