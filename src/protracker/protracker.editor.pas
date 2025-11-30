@@ -1500,17 +1500,36 @@ begin
 		PlaybackStartPos.Pattern := CurrentPattern;
 		PlaybackStartPos.Row := Cursor.Row;
 		PlaybackStartPos.Channel := Cursor.Channel;
-		if Assigned(OrderList) then
-			PlaybackStartPos.Order := OrderList.Cursor.Y
-		else
-			PlaybackStartPos.Order := 0;
 		o := -1;
-		for i := 0 to Module.Info.OrderCount-1 do
-			if Module.OrderList[i] = CurrentPattern then
+		// First check if PlaybackStartPos.Order is valid and matches current pattern
+		// (this remembers the last played position in the order list)
+		if (PlaybackStartPos.Order < Module.Info.OrderCount) and
+		   (Module.OrderList[PlaybackStartPos.Order] = CurrentPattern) then
+		begin
+			o := PlaybackStartPos.Order;
+		end
+		else
+		begin
+			// Otherwise, check if current cursor position matches
+			if Assigned(OrderList) and
+			   (OrderList.Cursor.Y < Module.Info.OrderCount) and
+			   (Module.OrderList[OrderList.Cursor.Y] = CurrentPattern) then
 			begin
-				o := i;
-				Break;
+				o := OrderList.Cursor.Y;
+				PlaybackStartPos.Order := o;
+			end
+			else
+			begin
+				// Fallback: search for first occurrence
+				for i := 0 to Module.Info.OrderCount-1 do
+					if Module.OrderList[i] = CurrentPattern then
+					begin
+						o := i;
+						PlaybackStartPos.Order := o;
+						Break;
+					end;
 			end;
+		end;
 		if o >= 0 then // continue from orderlist
 			Module.Play(o, Cursor.Row)
 		else

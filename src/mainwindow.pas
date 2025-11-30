@@ -30,7 +30,9 @@ type
 		keyMouseCursor,			keySaveCurrent,
 		keyRenderToSample,		keyCleanup,
 		keyToggleChannel1,		keyToggleChannel2,
-		keyToggleChannel3,		keyToggleChannel4
+		keyToggleChannel3,		keyToggleChannel4,
+		keyMetadataNotes,		keyMetadataNext,
+		keyMetadataPrev
 	);
 
 	TVideoInfo = record
@@ -126,6 +128,7 @@ uses
 	ProTracker.Messaging, ProTracker.Import,
 	Screen.Editor, Screen.Samples, Screen.FileReq, Screen.FileReqSample,
 	Screen.Log, Screen.Help, Screen.Config, Screen.Splash,
+	Screen.Notes,
 	Dialog.Cleanup, Dialog.ModuleInfo, Dialog.NewModule, Dialog.RenderAudio, Dialog.JumpToTime,
 	CWE.MainMenu;
 
@@ -193,21 +196,54 @@ begin
 						DoLoadModule(Data);
 						CleanupRecoveryFile;
 					except
-						// If loading recovery file fails, delete it and load empty module
-						Log(TEXT_FAILURE + 'Failed to restore recovery file. File may be corrupted.');
-						try
-							CleanupRecoveryFile;
-						except
-							// Ignore cleanup errors
+						on E: ERangeError do
+						begin
+							// Handle range errors from corrupted files
+							Log(TEXT_FAILURE + 'Failed to restore recovery file (range error). File is corrupted.');
+							try
+								if FileExists(Data) then
+									SysUtils.DeleteFile(Data);
+							except
+								// Ignore cleanup errors
+							end;
+							try
+								DoLoadModule('');
+							except
+								// If even loading empty module fails, just continue
+							end;
 						end;
-						DoLoadModule('');
+						on E: Exception do
+						begin
+							// Handle other exceptions
+							Log(TEXT_FAILURE + 'Failed to restore recovery file: ' + E.Message);
+							Log('File may be corrupted. Loading empty module instead.');
+							try
+								if FileExists(Data) then
+									SysUtils.DeleteFile(Data);
+							except
+								// Ignore cleanup errors
+							end;
+							try
+								DoLoadModule('');
+							except
+								// If even loading empty module fails, just continue
+							end;
+						end;
 					end;
 				end
 				else
 				begin
 					// User chose not to restore, delete recovery file and load empty module
-					CleanupRecoveryFile;
-					DoLoadModule('');
+					try
+						CleanupRecoveryFile;
+					except
+						// Ignore cleanup errors
+					end;
+					try
+						DoLoadModule('');
+					except
+						// If loading empty module fails, just continue
+					end;
 				end;
 			end;
 
@@ -421,13 +457,27 @@ begin
 				OK := TempModule.LoadFromFile(Filename, True);}
 			end;
 		except
-			// Handle corrupted or invalid files gracefully
-			OK := False;
-			TempModule.Warnings := False;
-			if Assigned(Module) then
-				Module.Warnings := False;
-			Log(TEXT_FAILURE + 'Failed to load file: ' + Filename);
-			Log('File may be corrupted or invalid.');
+			on E: ERangeError do
+			begin
+				// Handle range errors from corrupted files
+				OK := False;
+				TempModule.Warnings := False;
+				if Assigned(Module) then
+					Module.Warnings := False;
+				Log(TEXT_FAILURE + 'Failed to load file (range error): ' + Filename);
+				Log('File may be corrupted or invalid.');
+			end;
+			on E: Exception do
+			begin
+				// Handle other exceptions from corrupted or invalid files
+				OK := False;
+				TempModule.Warnings := False;
+				if Assigned(Module) then
+					Module.Warnings := False;
+				Log(TEXT_FAILURE + 'Failed to load file: ' + Filename);
+				Log('Error: ' + E.Message);
+				Log('File may be corrupted or invalid.');
+			end;
 		end;
 	end
 	else
@@ -993,6 +1043,13 @@ begin
 						CurrentPattern := Module.PlayPos.Pattern;
 						PatternEditor.Cursor.Row := Module.PlayPos.Row;
 						OrderList.Cursor.Y := Module.PlayPos.Order;
+						// Remember last played order position for F7 resume
+						if Module.PlayMode = PLAY_SONG then
+						begin
+							PlaybackStartPos.Order := Module.PlayPos.Order;
+							PlaybackStartPos.Pattern := Module.PlayPos.Pattern;
+							PlaybackStartPos.Row := Module.PlayPos.Row;
+						end;
 						Module.Stop;
 						PlayTimeCounter := 0;
 						PatternEditor.ValidateCursor;
@@ -1053,6 +1110,20 @@ begin
 
 		keyScreenLog:
 			ChangeScreen(TCWEScreen(LogScreen));
+
+		keyMetadataNotes:
+			if Assigned(Module) and Assigned(Module.Metadata) then
+				ChangeScreen(TCWEScreen(NotesScreen))
+			else
+				ModalDialog.ShowMessage('Notes', 'No module loaded.');
+
+		keyMetadataNext:
+			if Assigned(Module) and Assigned(Module.Metadata) then
+				Module.Metadata.NavigateNext;
+
+		keyMetadataPrev:
+			if Assigned(Module) and Assigned(Module.Metadata) then
+				Module.Metadata.NavigatePrevious;
 
 		keyPlaybackPrevPattern:
 			if not InModal then
@@ -1666,6 +1737,9 @@ begin
 		Bind(keyCleanup, 				'Song.Cleanup',				'Ctrl+Shift+C');
 		Bind(keyScreenOrderList, 		'Screen.OrderList', 		'F11');
 		Bind(keyScreenLog, 				'Screen.Log', 				['F4', 'Ctrl+F11']);
+		Bind(keyMetadataNotes,			'Metadata.Notes',			['Shift+F4']);
+		Bind(keyMetadataNext,			'Metadata.Next',			['Ctrl+Shift+N']);
+		Bind(keyMetadataPrev,			'Metadata.Previous',		['Ctrl+Shift+P']);
 		Bind(keyScreenAbout, 			'Screen.About', 			'Ctrl+F1');
 		Bind(keyScreenConfig, 			'Screen.Config', 			'F12');
 		Bind(keyPlaybackSong, 			'Playback.Song', 			'F5');
@@ -1839,6 +1913,9 @@ begin
 	SplashScreen := TSplashScreen.Create(Console, '', 'Splash');
 	Screens.Add(SplashScreen);
 
+	NotesScreen := TNotesScreen.Create(Console, 'Notes', 'Notes');
+	Screens.Add(NotesScreen);
+
 	// Init context menu
 	ContextMenu := TCWEMainMenu.Create;
 
@@ -1854,8 +1931,21 @@ begin
 	// Check for recovery file before loading new module
 	// If recovery file exists and user chooses to restore, DoLoadModule will be called from dialog callback
 	// Otherwise, load empty module
-	if not CheckRecoveryFile then
-		DoLoadModule('');
+	try
+		if not CheckRecoveryFile then
+			DoLoadModule('');
+	except
+		on E: Exception do
+		begin
+			// If checking recovery file fails (e.g., corrupted file), just load empty module
+			LogIfDebug('Error checking recovery file: ' + E.Message);
+			try
+				DoLoadModule('');
+			except
+				// If even loading empty module fails, just continue
+			end;
+		end;
+	end;
 
 	{$IFDEF LIMIT_KEYBOARD_EVENTS}
 	PrevKeyTimeStamp := 0;
@@ -2071,6 +2161,7 @@ var
 	MostRecentFile: String;
 	MostRecentTime: TDateTime;
 	FileTime: TDateTime;
+	FileValid: Boolean;
 begin
 	Result := False;
 	
@@ -2096,13 +2187,31 @@ begin
 					RecoveryFilename := Dir + SearchRec.Name;
 					try
 						FileTime := FileDateToDateTime(FileAge(RecoveryFilename));
-						if (MostRecentFile = '') or (FileTime > MostRecentTime) then
+						
+						// Basic validation: file size check only
+						// Full validation will happen when user tries to load it
+						// This prevents crashes during startup validation
+						FileValid := (SearchRec.Size >= 1084) and (SearchRec.Size < 100 * 1024 * 1024);
+						
+						// Only consider valid files
+						if FileValid and ((MostRecentFile = '') or (FileTime > MostRecentTime)) then
 						begin
 							MostRecentFile := RecoveryFilename;
 							MostRecentTime := FileTime;
+						end
+						else
+						if not FileValid then
+						begin
+							// Delete corrupted autosave file silently
+							try
+								SysUtils.DeleteFile(RecoveryFilename);
+								LogIfDebug('Removed corrupted autosave file: ' + RecoveryFilename);
+							except
+								// Ignore deletion errors
+							end;
 						end;
 					except
-						// Skip files we can't read
+						// Skip files we can't read or validate
 					end;
 				end;
 			until SysUtils.FindNext(SearchRec) <> 0;
