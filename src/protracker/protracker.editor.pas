@@ -1468,7 +1468,7 @@ end;}
 //
 function TPatternEditor.KeyDown;
 var
-	i, n, o: Integer;
+	i, n, o, resumeRow: Integer;
 	prevColumn: EditColumn;
 	r: TRect;
 	Sht: TShiftState;
@@ -1498,15 +1498,17 @@ begin
 	if Key = SDLK_F7 then //keyPlaybackPlayFrom
 	begin
 		PlaybackStartPos.Pattern := CurrentPattern;
-		PlaybackStartPos.Row := Cursor.Row;
 		PlaybackStartPos.Channel := Cursor.Channel;
 		o := -1;
+		resumeRow := Cursor.Row; // Default to current cursor row
 		// First check if PlaybackStartPos.Order is valid and matches current pattern
 		// (this remembers the last played position in the order list)
 		if (PlaybackStartPos.Order < Module.Info.OrderCount) and
 		   (Module.OrderList[PlaybackStartPos.Order] = CurrentPattern) then
 		begin
 			o := PlaybackStartPos.Order;
+			// Use stored row position when resuming from remembered position
+			resumeRow := PlaybackStartPos.Row;
 		end
 		else
 		begin
@@ -1517,6 +1519,7 @@ begin
 			begin
 				o := OrderList.Cursor.Y;
 				PlaybackStartPos.Order := o;
+				PlaybackStartPos.Row := Cursor.Row;
 			end
 			else
 			begin
@@ -1526,14 +1529,15 @@ begin
 					begin
 						o := i;
 						PlaybackStartPos.Order := o;
+						PlaybackStartPos.Row := Cursor.Row;
 						Break;
 					end;
 			end;
 		end;
 		if o >= 0 then // continue from orderlist
-			Module.Play(o, Cursor.Row)
+			Module.Play(o, resumeRow)
 		else
-			Module.PlayPattern(CurrentPattern, Cursor.Row);
+			Module.PlayPattern(CurrentPattern, resumeRow);
 		Exit(True);
 	end;
 
