@@ -292,6 +292,8 @@ FPC_FLAGS_RELEASE = \
 	-O3 \
 	-XX \
 	-Xs \
+	-gl \
+	-gv \
 	-dRELEASE \
 	-dBASS_DYNAMIC \
 	-dDISABLE_SDL2_2_0_5 \
@@ -299,10 +301,27 @@ FPC_FLAGS_RELEASE = \
 	$(PLATFORM_DEFINES)
 
 # Debug mode flags
-FPC_FLAGS_DEBUG = \
+# -g: Generate debug information
+# -gl: Generate line info (needed for stack traces - includes lineinfo unit)
+# -gw: Generate DWARF debug info (required for macOS symbolication with atos/dsymutil)
+# -gh: Generate heap trace
+# Note: On macOS, use -gw (DWARF) for proper symbolication with atos/dsymutil
+# -gl may output file:line directly, but if not, DWARF + dSYM allows atos to work
+# -Cr: Range checking
+# -Ct: Stack checking  
+# -Ci: I/O checking
+# -Co: Overflow checking
+# -Sa: Assertions
+ifeq ($(TARGET_OS),darwin)
+  # macOS: Use DWARF (-gw) with lineinfo (-gl)
+  # -gw: Generate DWARF debug info for atos/dsymutil symbolication
+  # -gl: Includes lineinfo unit for DumpExceptionBackTrace (uses DWARF lineinfo with -gw)
+  # Note: DumpExceptionBackTrace may still show addresses, but symbolicate.sh can resolve them
+  FPC_FLAGS_DEBUG = \
 	$(FPC_FLAGS_BASE) \
 	-g \
 	-gl \
+	-gw \
 	-gh \
 	-Cr \
 	-Ct \
@@ -314,10 +333,33 @@ FPC_FLAGS_DEBUG = \
 	-dDISABLE_SDL2_2_0_5 \
 	-dDISABLE_SDL2_2_0_4 \
 	$(PLATFORM_DEFINES)
+else
+  # Other platforms: Use Stabs (or let FPC choose)
+  FPC_FLAGS_DEBUG = \
+	$(FPC_FLAGS_BASE) \
+	-g \
+	-gl \
+	-gs \
+	-gh \
+	-Cr \
+	-Ct \
+	-Ci \
+	-Co \
+	-Sa \
+	-dDEBUG \
+	-dBASS_DYNAMIC \
+	-dDISABLE_SDL2_2_0_5 \
+	-dDISABLE_SDL2_2_0_4 \
+	$(PLATFORM_DEFINES)
+endif
 
 # Source files
 MAIN_SOURCE = $(SRC_DIR)/propulse.pas
 RESOURCE_FILE = $(SRC_DIR)/propulse.res
+
+# Find all Pascal source files for dependency tracking
+# This ensures Make detects changes in any source file and triggers rebuild
+ALL_PAS_FILES = $(shell find $(SRC_DIR) -name "*.pas" -type f 2>/dev/null | sort)
 
 # Output binary names (output directly to BIN_DIR)
 ifeq ($(MODE),debug)
@@ -342,14 +384,23 @@ debug: $(OUTPUT_BINARY)
 	@if [ -n "$(POST_BUILD)" ]; then \
 		$(MAKE) $(POST_BUILD) BINARY=$(OUTPUT_BINARY); \
 	fi
+	@if [ "$(TARGET_OS)" = "darwin" ] && [ "$(MODE)" = "debug" ]; then \
+		echo "Generating dSYM for macOS symbolication..."; \
+		dsymutil $(OUTPUT_BINARY) 2>&1 | grep -v "warning:.*no debug symbols" || true; \
+		echo "Note: FreePascal's DWARF output has limited location info for functions."; \
+		echo "      Use ./symbolicate.sh for symbolication (uses nm fallback)."; \
+	fi
 
 # Build binary
-$(OUTPUT_BINARY): $(MAIN_SOURCE) $(RESOURCE_FILE)
+# Note: FPC handles its own dependency tracking via .ppu files
+# Adding -B flag ensures FPC checks all dependencies
+# Depend on all .pas files so Make detects changes and triggers rebuild
+$(OUTPUT_BINARY): $(MAIN_SOURCE) $(RESOURCE_FILE) $(ALL_PAS_FILES)
 	@echo "Building $(PROJECT_NAME) for $(TARGET) ($(MODE))..."
 	@echo "  Target: $(TARGET_CPU)-$(TARGET_OS)"
 	@mkdir -p $(UNIT_OUTPUT_DIR)
 	@mkdir -p $(BIN_DIR)
-	$(FPC) $(FPC_FLAGS) $(UNIT_PATHS) $(MAIN_SOURCE) -o$(OUTPUT_BINARY) \
+	$(FPC) -B $(FPC_FLAGS) $(UNIT_PATHS) $(MAIN_SOURCE) -o$(OUTPUT_BINARY) \
 		-k-lSDL2 -k-lbass -k-lsoxr $(LIB_PATHS)
 	@echo "Build complete: $(OUTPUT_BINARY)"
 	@if [ -d "$(LIB_DIR)" ]; then \
@@ -412,6 +463,7 @@ all-targets-debug:
 clean:
 	@echo "Cleaning build artifacts for $(TARGET)..."
 	rm -rf $(UNIT_OUTPUT_DIR)
+	rm -rf $(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)*.dSYM
 	rm -f $(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)*
 	rm -f $(BIN_DIR)/*.dylib $(BIN_DIR)/*.dll $(BIN_DIR)/*.so 2>/dev/null || true
 	rm -f $(OUTPUT_DIR)/*.o
