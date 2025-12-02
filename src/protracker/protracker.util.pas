@@ -71,8 +71,11 @@ type
 	TAutosaveIntervalInfo = record
 		Value: Byte;		// Configuration value (0-3)
 		Frames: Integer;	// Frame count at 60 FPS
-		Label: String;		// Display label
+		DisplayLabel: String;		// Display label
 	end;
+
+	// Autosave interval labels array type
+	TAutosaveIntervalLabels = array[TAutosaveInterval] of AnsiString;
 
 	// hacks to allow pointer maths on data
 	TArrayOfByte 		= array [0..65535] of Byte;
@@ -211,10 +214,10 @@ const
 
 	// Autosave interval definitions - single source of truth for all autosave interval data
 	AUTOSAVE_INTERVALS: array[TAutosaveInterval] of TAutosaveIntervalInfo = (
-		(Value: 0; Frames: 0;      Label: 'Disabled'),
-		(Value: 1; Frames: 900;   Label: '15 seconds'),
-		(Value: 2; Frames: 1800;  Label: '30 seconds'),
-		(Value: 3; Frames: 3600;  Label: '60 seconds')
+		(Value: 0; Frames: 0;      DisplayLabel: 'Disabled'),
+		(Value: 1; Frames: 900;   DisplayLabel: '15 seconds'),
+		(Value: 2; Frames: 1800;  DisplayLabel: '30 seconds'),
+		(Value: 3; Frames: 3600;  DisplayLabel: '60 seconds')
 	);
 
 	// ========================================================================
@@ -374,6 +377,11 @@ const
 	procedure LogIfDebug(const Msg: AnsiString);
 	procedure LogError(const Msg: AnsiString); inline;
 	procedure LogFatal(const Msg: AnsiString); inline;
+
+	// Autosave interval helper functions
+	function  GetAutosaveIntervalFrames(IntervalValue: Byte): Integer;
+	function  IsValidAutosaveInterval(IntervalValue: Byte): Boolean;
+	function  GetAutosaveIntervalLabels: TAutosaveIntervalLabels;
 
 
 var
@@ -716,12 +724,12 @@ end;
 
 // Helper to get autosave interval labels as typed array for settings UI
 // This extracts labels from AUTOSAVE_INTERVALS to ensure consistency
-function GetAutosaveIntervalLabels: array[TAutosaveInterval] of AnsiString;
+function GetAutosaveIntervalLabels: TAutosaveIntervalLabels;
 var
 	i: TAutosaveInterval;
 begin
 	for i := Low(TAutosaveInterval) to High(TAutosaveInterval) do
-		Result[i] := AUTOSAVE_INTERVALS[i].Label;
+		Result[i] := AUTOSAVE_INTERVALS[i].DisplayLabel;
 end;
 
 
