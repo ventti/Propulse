@@ -625,13 +625,13 @@ begin
 	case Alignment of
 
 		ALIGN_LEFT:
-			Console.Write(S, Rect.Left, Rect.Top);
+			Console.Write(S, Rect.Left, Rect.Top, C, ColorBack);
 
 		ALIGN_CENTER:
-			Console.Write(S, ((Rect.Right-Rect.Left) div 2) - (Length(S) div 2) + Rect.Left, Rect.Top);
+			Console.Write(S, ((Rect.Right-Rect.Left) div 2) - (Length(S) div 2) + Rect.Left, Rect.Top, C, ColorBack);
 
 		ALIGN_RIGHT:
-			Console.Write(S, Rect.Right - Length(S), Rect.Top);
+			Console.Write(S, Rect.Right - Length(S), Rect.Top, C, ColorBack);
 
 		ALIGN_HEADER:
 			Console.WriteHeader(S, Rect.Top, C, ColorBack, Rect.Left, Rect.Right);
