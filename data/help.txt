@@ -255,9 +255,10 @@
 
 <h2>Sample Editor:
  
-    Left mouse   Select sample data
-    Right mouse  Draw into sample data
-    Mouse wheel  Zoom in/out
+    Left mouse        Select sample data
+    Ctrl-Left mouse   Draw into sample data
+    Right mouse       Draw into sample data
+    Mouse wheel       Zoom in/out
  
     Ctrl-C       Copy sample/selection to clipboard
     Ctrl-V       Paste from clipboard
