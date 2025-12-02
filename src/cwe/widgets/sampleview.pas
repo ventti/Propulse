@@ -93,7 +93,8 @@ implementation
 uses
 	SysUtils, DateUtils,
 	CWE.Dialogs,
-	Screen.Samples, SampleEditor;
+	Screen.Samples, SampleEditor,
+	MainWindow;
 
 // --------------------------------------------------------------------------
 { TSampleRange }
@@ -569,28 +570,39 @@ begin
 
 		mbLeft:
 		begin
-			if (MilliSecondsBetween(Now, PrevClickTime) < 250) then // Double clicked
+			// Check if Ctrl is pressed - if so, enable drawing mode
+			if ssCtrl in GetShiftState then
 			begin
-				PrevClickTime := Now;
-				DoubleClicked;
-				Exit(True);
+				CaptureMouse;
+				MouseAction := MOUSE_DRAW;
+				PrevMousePos := Point(-1, -1);
+				MouseMoveEvent(Self, X{+PixelRect.Left}, Y{+PixelRect.Top}, P);
 			end
 			else
 			begin
-				PrevClickTime := Now;
-				CaptureMouse;
+				if (MilliSecondsBetween(Now, PrevClickTime) < 250) then // Double clicked
+				begin
+					PrevClickTime := Now;
+					DoubleClicked;
+					Exit(True);
+				end
+				else
+				begin
+					PrevClickTime := Now;
+					CaptureMouse;
 
-				case MouseAction of
+					case MouseAction of
 
-					MOUSE_NONE, MOUSE_SELECT:
-					begin
-						MouseAction := MOUSE_SELECT;
-						X := Max(PixelToSamplePos(X, 0), 0);
-						Selection.SetRange(X, X, FSample);
-						Selection.Origin := X;
-						DrawWaveform;
+						MOUSE_NONE, MOUSE_SELECT:
+						begin
+							MouseAction := MOUSE_SELECT;
+							X := Max(PixelToSamplePos(X, 0), 0);
+							Selection.SetRange(X, X, FSample);
+							Selection.Origin := X;
+							DrawWaveform;
+						end;
+
 					end;
-
 				end;
 			end;
 		end;
