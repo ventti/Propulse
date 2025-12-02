@@ -16,7 +16,8 @@ uses
 	ProTracker.Messaging,
 	SDL2,
 	{$IFDEF BASS} BASS, {$ENDIF}
-	ProTracker.Util, ProTracker.Sample, ProTracker.Paula, ProTracker.Filters;
+	ProTracker.Util, ProTracker.Sample, ProTracker.Paula, ProTracker.Filters,
+	ProTracker.Metadata;
 
 const
     MINIMUM_AUDIOBUFFER_LENGTH = 45; // in milliseconds
@@ -273,6 +274,8 @@ type
 		OnProgressInit:		TProgressInitEvent;
 		OnProgress:			TProgressEvent;
 		OnModified: 		TModifiedEvent;
+
+		Metadata:			TSongMetadata;
 
 		PlayStarted:		TDateTime;
 
@@ -963,6 +966,13 @@ begin
 	Stream.Free;
 	Info.Filename := Filename;
 
+	// Save metadata after successful module save
+	if Assigned(Metadata) then
+	begin
+		Metadata.SetModuleFilename(Filename);
+		Metadata.SaveToFile;
+	end;
+
 	Log(TEXT_LIGHT + 'Module saved: ' + Filename + '.');
 	Log('-');
 
@@ -1269,13 +1279,35 @@ begin
 	end;*)
 
 	Reset;
-	ModFile := TFileStreamEx.Create(Filename, fmOpenRead, fmShareDenyNone);
+	
+	// Check file exists and has valid size before attempting to open
+	if not FileExists(Filename) then
+	begin
+		ExitError('File not found: ' + Filename, []);
+		Exit;
+	end;
+	
+	try
+		ModFile := TFileStreamEx.Create(Filename, fmOpenRead, fmShareDenyNone);
+	except
+		on E: Exception do
+		begin
+			ExitError('Cannot open file: ' + E.Message, []);
+			Exit;
+		end;
+	end;
 
 	Info.BPM := 0;
 
 	// Verify file size
 	//
 	Info.Filesize := ModFile.Size;
+	if Info.Filesize < 1084 then // Minimum valid MOD file size
+	begin
+		ModFile.Free;
+		ExitError('File too small to be a valid module file', []);
+		Exit;
+	end;
 	Info.Filename := '';
 	TempFilename := '';
 
@@ -1790,6 +1822,17 @@ Done:
 
 	Result := True;
 	Info.Filename := Filename;
+
+	// Load metadata after successful module load
+	if Assigned(Metadata) then
+	begin
+		Metadata.Free;
+		Metadata := TSongMetadata.Create(Filename);
+		if not Metadata.LoadFromFileSafe then
+		begin
+			// Metadata file is corrupted or doesn't exist - that's OK
+		end;
+	end;
 end;
 
 procedure TPTModule.FindDefaultTempo(GotSpeed, GotTempo: Boolean);
@@ -1885,6 +1928,8 @@ begin
 	CurrentSpeed := 6;
 	SetBPMFlag := 0;
 
+	Metadata := TSongMetadata.Create('');
+
 	DisableMixer := True;
 
 	for i := 0 to 31 do
@@ -1957,6 +2002,9 @@ begin
 			Samples[i].Free;}
 	Samples.Free;
 	ImportInfo.Samples.Free;
+
+	if Assigned(Metadata) then
+		Metadata.Free;
 
 	if Self = Module then
 		Module := nil;
