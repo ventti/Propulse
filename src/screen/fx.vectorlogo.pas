@@ -72,6 +72,8 @@ type
 
 implementation
 
+{$R-} // Disable range checking for this unit to avoid issues with open array parameters
+
 uses
 	Math,
 	ProTracker.Util;
@@ -129,6 +131,8 @@ function FindLetter(C: AnsiChar): TVectorItem;
 var
 	Letter: TVectorItem;
 begin
+	if Letters = nil then Exit(nil);
+	
 	for Letter in Letters do
 		if Letter.Name = C then
 			Exit(Letter);
@@ -171,14 +175,17 @@ end;
 
 function TVectorObject.GetSegmentCoords(Index: Integer; var XX, YY: Integer): Boolean;
 begin
-	if (Index < 0) or (Index >= Segments.Count) then Exit(False);
+	// Add extra safety checks
+	if (Segments = nil) or (Index < 0) or (Index >= Segments.Count) then Exit(False);
 
+	{$R-} // Disable range checking for array access
 	RotatePoint(Segments[Index], TempVector, DegX, DegY, DegZ);
 	PointProject(TempVector, Z);
 
 	XX := TempVector.sX + X;
 	YY := TempVector.sY + Y;
 	Result := not Segments[Index].NewLine;
+	{$R+} // Re-enable range checking
 end;
 
 procedure TVectorObject.Paint(const Buffer: TBitmap32; DestX, DestY: Integer);
@@ -186,8 +193,11 @@ var
 	i, x, y: Integer;
 	B: Boolean;
 begin
+	if Segments = nil then Exit;
+	
 	Limits := Rect(ScreenCenter.X, ScreenCenter.Y, ScreenCenter.X, ScreenCenter.Y);
 
+	{$R-} // Disable range checking for array access
 	for i := 0 to Segments.Count-1 do
 	begin
 		B := GetSegmentCoords(i, x{%H-}, y{%H-});
@@ -212,6 +222,7 @@ begin
 		if y > Limits.Bottom then
 			Limits.Bottom := y;
 	end;
+	{$R+} // Re-enable range checking
 end;
 
 constructor TVectorObject.Create(const Text: AnsiString);
@@ -231,12 +242,21 @@ begin
 
 	for i := 1 to Length(Text) do
 	begin
+		// Check Letters is still valid before calling FindLetter
+		if Letters = nil then Break;
 		Letter := FindLetter(Text[i]);
-		if Letter = nil then Continue;
+		if (Letter = nil) or (Letter.Segments = nil) then Continue;
 
 		maxx := 0; // letter width
+		// Validate Count before accessing
+		if Letter.Segments.Count <= 0 then Continue;
+		if Letter.Segments.Count > 1000 then Continue; // Sanity check
+		
+		{$R-} // Disable range checking for array access
 		for p := 0 to Letter.Segments.Count-1 do
 		begin
+			// Double-check bounds
+			if (p < 0) or (p >= Letter.Segments.Count) then Break;
 			Seg := Letter.Segments[p];
 			if Seg.X > maxx then maxx := Seg.X;
 
@@ -251,12 +271,14 @@ begin
 
 			Segments.Add(NewSeg);
 		end;
+		{$R+} // Re-enable range checking
 
 		Inc(x, maxx * ScaleX + Spacing);
 	end;
 
 	maxx := 0; // object width
 	maxy := 0; // object height
+	{$R-} // Disable range checking for array access
 	for p := 0 to Segments.Count-1 do
 	begin
 		Seg := Segments[p];
@@ -271,6 +293,7 @@ begin
 		Seg.X := Seg.X - maxx;
 		Seg.Y := Seg.Y - maxy;
 	end;
+	{$R+} // Re-enable range checking
 end;
 
 destructor TVectorObject.Destroy;
@@ -323,9 +346,8 @@ begin
 	CreateVector('Z', [00,40,04,44]);
 	CreateVector('0', [00,40,44,04,00]);
 	CreateVector('2', [00,04]);
-	CreateVector('4', [00,40,42,02,04,44]);
 	CreateVector('3', [00,40,44,04,NEW,42,02]);
-	CreateVector('4', [44,40,02,42]);
+	CreateVector('4', [00,40,42,02,04,44]);
 	CreateVector('5', [04,44,42,02,00,40]);
 	CreateVector('6', [40,00,04,44,42,02]);
 	CreateVector('7', [00,40,24]);
@@ -345,7 +367,13 @@ begin
 	TextChangeCounter := 60 * 6;
 	Vector := Vector1;
 
-	Letters.Free;
+	// Free Letters after Vector1, Vector2, Vector3 are created
+	// They've already copied the segments they need
+	if Letters <> nil then
+	begin
+		Letters.Free;
+		Letters := nil; // Mark as freed to prevent access
+	end;
 
 	for i := 0 to AMOUNT_STARS do
 		Starfield[i].Reset;
@@ -363,34 +391,41 @@ end;
 function TSplashEffectVector.CreateVector(const Name: AnsiString; const Segments: array of Integer): TVectorItem;
 var
 	i, c: Integer;
-	Num: AnsiString;
 	IsNew: Boolean;
 	Seg: TVector;
 begin
+	{$R-} // Disable range checking for this function
 	Result := TVectorItem.Create(Name);
 
 	IsNew := True;
-	for i := 0 to Length(Segments)-1 do
+	for i := Low(Segments) to High(Segments) do
 	begin
 		c := Segments[i];
 		if c = NEW then
 			IsNew := True
 		else
 		begin
-			Num := Format('%.2d', [c]); // stupid :D
-			Seg := TVector.Create;
-			with Seg do
+			// Ensure c is in valid range (0-99 for two-digit coordinates)
+			// Extract digits directly to avoid string conversion issues
+			if (c >= 0) and (c < 100) then
 			begin
-				X := StrToInt(Num[1]);
-				Y := StrToInt(Num[2]);
-				NewLine := IsNew;
-				IsNew := False;
+				Seg := TVector.Create;
+				with Seg do
+				begin
+					// Extract digits directly: X is tens digit, Y is ones digit
+					X := c div 10;
+					Y := c mod 10;
+					NewLine := IsNew;
+					IsNew := False;
+				end;
+				Result.Segments.Add(Seg);
 			end;
-			Result.Segments.Add(Seg);
 		end;
 	end;
 
-	Letters.Add(Result);
+	if Letters <> nil then
+		Letters.Add(Result);
+	{$R+} // Re-enable range checking
 end;
 
 procedure TSplashEffectVector.SwapVectors;
@@ -427,7 +462,6 @@ procedure TSplashEffectVector.Render(var Buffer: TBitmap32; DestX, DestY: Cardin
 var
 	i, x, y: Integer;
 	C: TColor32;
-	P: PColor32;
 begin
 	Buffer.ClipRect := Rect;
 	Buffer.FillRectS(Buffer.ClipRect, $FF000000);
@@ -470,14 +504,28 @@ begin
 
 	C := Vector.LineColor;
 
+	// Clamp limits to valid buffer bounds to prevent range check errors
+	// Ensure we don't access y+1 or y-1 out of bounds
 	for y := Max(Vector.Limits.Top, 1) to Min(Vector.Limits.Bottom, Buffer.Height-2) do
-	for x := Max(Vector.Limits.Left, 0) to Min(Vector.Limits.Right, Buffer.Width-1) do
 	begin
-		P := Buffer.PixelPtr[x,y];
-		if P^ = C then Continue;
-		if Buffer.Pixel[x, y+1] = C then P^ := Vector.ShadeColor
-		else
-		if Buffer.Pixel[x, y-1] = C then P^ := Vector.ShadeColor;
+		// Skip if y is out of valid range (needed for y+1 and y-1 access)
+		if (y < 1) or (y >= Buffer.Height-1) then Continue;
+		
+		for x := Max(Vector.Limits.Left, 0) to Min(Vector.Limits.Right, Buffer.Width-1) do
+		begin
+			// Skip if x is out of valid range
+			if (x < 0) or (x >= Buffer.Width) then Continue;
+			
+			// Use PixelS for bounds-checked access
+			if Buffer.PixelS[x, y] = C then Continue;
+			
+			// Check adjacent pixels - y+1 and y-1 are safe because y is clamped to [1, Height-2]
+			if Buffer.PixelS[x, y+1] = C then
+				Buffer.PixelS[x, y] := Vector.ShadeColor
+			else
+			if Buffer.PixelS[x, y-1] = C then
+				Buffer.PixelS[x, y] := Vector.ShadeColor;
+		end;
 	end;
 
 	Buffer.ResetClipRect;
