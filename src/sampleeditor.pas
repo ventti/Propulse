@@ -78,7 +78,8 @@ type
 		uaSetLoop,		// Set loop points
 		uaSetVolume,	// Set volume
 		uaSetFinetune,	// Set finetune
-		uaSetName		// Set sample name
+		uaSetName,		// Set sample name
+		uaDraw			// Draw operation
 	);
 
 	TSampleUndoEntry = record
@@ -107,6 +108,9 @@ type
 		UndoInProgress: Boolean;
 		TempDir: AnsiString;
 		TempFiles: TStringList;
+		PendingDrawUndo: TSampleUndoEntry;
+		IsDrawing: Boolean;
+		FDrawOccurred: Boolean;
 
 		procedure	ClearRedo;
 		function	SaveSampleBackup(SampleIndex: Byte): AnsiString;
@@ -126,6 +130,10 @@ type
 		function	CanUndo: Boolean;
 		function	CanRedo: Boolean;
 		property	IsUndoInProgress: Boolean read UndoInProgress;
+		property	DrawOccurred: Boolean write FDrawOccurred;
+
+		procedure	StartDrawUndo;
+		procedure	EndDrawUndo;
 
 		function	GetSelection(var X1, X2: Integer): Boolean;
 		function	HasSelection: Boolean; inline;
@@ -182,6 +190,32 @@ uses
 	ProTracker.Sample,
 	FloatSampleEffects,
 	FileStreamEx;
+
+// Get OS-specific temp directory
+function GetOSTempDir: AnsiString;
+{$IFDEF WINDOWS}
+var
+	TempPath: AnsiString;
+begin
+	TempPath := GetEnvironmentVariable('TEMP');
+	if TempPath = '' then
+		TempPath := GetEnvironmentVariable('TMP');
+	if TempPath = '' then
+		TempPath := 'C:\Windows\Temp';
+	Result := IncludeTrailingPathDelimiter(TempPath);
+end;
+{$ELSE}
+var
+	TempPath: AnsiString;
+begin
+	TempPath := GetEnvironmentVariable('TMPDIR');
+	if TempPath = '' then
+		TempPath := GetEnvironmentVariable('TMP');
+	if TempPath = '' then
+		TempPath := '/tmp';
+	Result := IncludeTrailingPathDelimiter(TempPath);
+end;
+{$ENDIF}
 
 var
 	Clipbrd: array of Byte;
@@ -1110,11 +1144,16 @@ var
 	Counter: Integer;
 begin
 	Result := '';
-	if (SampleIndex < 1) or (SampleIndex > 31) then Exit;
+	if (SampleIndex < 1) or (SampleIndex > 31) then
+		Exit;
 	
 	Sample := Module.Samples[SampleIndex - 1];
-	if Sample = nil then Exit;
-	if Sample.IsEmpty then Exit;
+	if (Sample = nil) or Sample.IsEmpty then
+		Exit;
+	
+	// Ensure temp directory exists
+	if (TempDir <> '') and (not DirectoryExists(TempDir)) then
+		ForceDirectories(TempDir);
 	
 	// Generate unique filename
 	Counter := 0;
@@ -1123,7 +1162,8 @@ begin
 		Inc(Counter);
 	until not FileExists(Filename) or (Counter > 1000);
 	
-	if Counter > 1000 then Exit; // Failed to generate unique filename
+	if Counter > 1000 then
+		Exit; // Failed to generate unique filename
 	
 	// Save sample data as raw file
 	try
@@ -1135,10 +1175,15 @@ begin
 		end;
 		
 		// Store filename for cleanup
-		TempFiles.Add(Filename);
+		if TempFiles <> nil then
+			TempFiles.Add(Filename);
 		Result := Filename;
 	except
-		Result := '';
+		on E: Exception do
+		begin
+			Log('Error saving sample backup: ' + E.Message);
+			Result := '';
+		end;
 	end;
 end;
 
@@ -1148,11 +1193,14 @@ var
 	FileSize: Int64;
 begin
 	Result := False;
-	if (SampleIndex < 1) or (SampleIndex > 31) then Exit;
-	if not FileExists(Filename) then Exit;
+	if (SampleIndex < 1) or (SampleIndex > 31) then
+		Exit;
+	if not FileExists(Filename) then
+		Exit;
 	
 	Sample := Module.Samples[SampleIndex - 1];
-	if Sample = nil then Exit;
+	if Sample = nil then
+		Exit;
 	
 	try
 		with TFileStreamEx.Create(Filename, fmOpenRead) do
@@ -1169,7 +1217,11 @@ begin
 			Free;
 		end;
 	except
-		Result := False;
+		on E: Exception do
+		begin
+			Log('Error restoring sample backup: ' + E.Message);
+			Result := False;
+		end;
 	end;
 end;
 
@@ -1193,6 +1245,7 @@ var
 	CurrentLoopStart, CurrentLoopLength: Cardinal;
 	CurrentTempLoopStart, CurrentTempLoopLength: Cardinal;
 	CurrentLoopEnabled: Boolean;
+	CurrentBackupFile, OldBackupFile: AnsiString;
 	Sample: TSample;
 begin
 	if not CanUndo then
@@ -1202,6 +1255,8 @@ begin
 	end;
 	
 	Entry := UndoBuffer[UndoIndex];
+	// Save the old backup filename before we potentially overwrite it
+	OldBackupFile := Entry.BackupFilename;
 	UndoInProgress := True;
 	
 	try
@@ -1268,7 +1323,17 @@ begin
 		else
 		begin
 			// Restore sample from backup (for data changes)
-			if not RestoreSampleBackup(Entry.BackupFilename, Entry.SampleIndex) then
+			// IMPORTANT: For redo to work, we need to save the CURRENT state before restoring
+			// This creates a backup that redo can use to restore back to the state we're leaving
+			CurrentBackupFile := SaveSampleBackup(Entry.SampleIndex);
+			if CurrentBackupFile <> '' then
+			begin
+				// Store the current state backup in the entry for redo
+				// We swap: old backup becomes the restore point, current state becomes the redo point
+				UndoBuffer[UndoIndex].BackupFilename := CurrentBackupFile;
+			end;
+			
+			if not RestoreSampleBackup(OldBackupFile, Entry.SampleIndex) then
 			begin
 				Log('Failed to restore sample backup.');
 				Exit;
@@ -1321,6 +1386,7 @@ var
 	CurrentLoopStart, CurrentLoopLength: Cardinal;
 	CurrentTempLoopStart, CurrentTempLoopLength: Cardinal;
 	CurrentLoopEnabled: Boolean;
+	CurrentBackupFile, OldBackupFile: AnsiString;
 	Sample: TSample;
 begin
 	if not CanRedo then
@@ -1335,6 +1401,8 @@ begin
 		UndoIndex := 0;
 	
 	Entry := UndoBuffer[UndoIndex];
+	// Save the old backup filename before we potentially overwrite it
+	OldBackupFile := Entry.BackupFilename;
 	UndoInProgress := True;
 	
 	try
@@ -1401,7 +1469,17 @@ begin
 		else
 		begin
 			// Restore sample from backup (for data changes)
-			if not RestoreSampleBackup(Entry.BackupFilename, Entry.SampleIndex) then
+			// IMPORTANT: For undo to work after redo, we need to save the CURRENT state before restoring
+			// This creates a backup that undo can use to restore back to the state we're leaving
+			CurrentBackupFile := SaveSampleBackup(Entry.SampleIndex);
+			if CurrentBackupFile <> '' then
+			begin
+				// Store the current state backup in the entry for undo
+				// We swap: old backup becomes the restore point, current state becomes the undo point
+				UndoBuffer[UndoIndex].BackupFilename := CurrentBackupFile;
+			end;
+			
+			if not RestoreSampleBackup(OldBackupFile, Entry.SampleIndex) then
 			begin
 				Log('Failed to restore sample backup.');
 				Exit;
@@ -1440,6 +1518,115 @@ begin
 	finally
 		UndoInProgress := False;
 	end;
+end;
+
+procedure TSampleEditor.StartDrawUndo;
+var
+	PrevPendingDrawUndo: TSampleUndoEntry;
+	PrevDrawOccurred: Boolean;
+begin
+	if UndoInProgress then
+		Exit;
+	if IsDrawing then
+	begin
+		// Previous draw operation didn't complete properly - end it first
+		// Save the previous pending entry before starting a new one
+		PrevPendingDrawUndo := PendingDrawUndo;
+		PrevDrawOccurred := FDrawOccurred;
+		
+		// Reset drawing state first
+		IsDrawing := False;
+		FDrawOccurred := False;
+		
+		// Now finalize the previous draw if it had valid data
+		if PrevDrawOccurred and (PrevPendingDrawUndo.BackupFilename <> '') and 
+		   (PrevPendingDrawUndo.SampleIndex >= 1) and 
+		   (PrevPendingDrawUndo.SampleIndex <= 31) then
+		begin
+			// Manually add the previous entry to buffer (same logic as EndDrawUndo)
+			ClearRedo;
+			Inc(UndoIndex);
+			if UndoIndex >= 100 then
+				UndoIndex := 0;
+			if UndoCount < 100 then
+				Inc(UndoCount);
+			UndoBuffer[UndoIndex] := PrevPendingDrawUndo;
+		end;
+	end;
+	
+	if (Waveform <> nil) and (Waveform.Sample <> nil) and 
+	   (Waveform.Sample.Index >= 1) and (Waveform.Sample.Index <= 31) then
+	begin
+		IsDrawing := True;
+		FDrawOccurred := False;
+		PendingDrawUndo := CreateUndoEntry(uaDraw, Waveform.Sample.Index, 'Draw sample');
+		// Save backup BEFORE drawing starts
+		// SaveSampleBackup will check if sample is empty and return empty string if so
+		PendingDrawUndo.BackupFilename := SaveSampleBackup(PendingDrawUndo.SampleIndex);
+		if PendingDrawUndo.BackupFilename = '' then
+		begin
+			// Failed to save backup (sample might be empty or file system error)
+			// Cancel draw undo - user can still draw but won't be able to undo
+			IsDrawing := False;
+		end;
+	end;
+end;
+
+procedure TSampleEditor.EndDrawUndo;
+var
+	Index: Integer;
+begin
+	if not IsDrawing then
+		Exit;
+	if UndoInProgress then
+		Exit;
+	
+	// Add the undo entry to the buffer (backup already saved in StartDrawUndo)
+	// Only add if drawing actually occurred AND we have a valid backup filename and sample index
+	// The backup file should exist if SaveSampleBackup returned a filename
+	if FDrawOccurred and (PendingDrawUndo.BackupFilename <> '') and 
+	   (PendingDrawUndo.SampleIndex >= 1) and 
+	   (PendingDrawUndo.SampleIndex <= 31) then
+	begin
+		// Use the same logic as AddUndoEntry but skip backup save since we already did it
+		// Clear redo stack when new action is performed
+		ClearRedo;
+		
+		// Move forward in circular buffer
+		Inc(UndoIndex);
+		if UndoIndex >= 100 then
+			UndoIndex := 0;
+		
+		// If buffer is full, we're overwriting oldest entry
+		if UndoCount < 100 then
+			Inc(UndoCount);
+		
+		// Store the entry with backup filename (already set in StartDrawUndo)
+		UndoBuffer[UndoIndex] := PendingDrawUndo;
+	end
+	else
+	begin
+		// Backup failed or invalid - clean up if backup file was created
+		if (PendingDrawUndo.BackupFilename <> '') then
+		begin
+			try
+				if FileExists(PendingDrawUndo.BackupFilename) then
+					DeleteFile(PendingDrawUndo.BackupFilename);
+				if TempFiles <> nil then
+				begin
+					// Remove from TempFiles list if it exists
+					Index := TempFiles.IndexOf(PendingDrawUndo.BackupFilename);
+					if Index >= 0 then
+						TempFiles.Delete(Index);
+				end;
+			except
+				// Ignore cleanup errors
+			end;
+		end;
+	end;
+	
+	IsDrawing := False;
+	FDrawOccurred := False;
 end;
 
 procedure TSampleEditor.CleanupTempFiles;
@@ -1488,8 +1675,10 @@ begin
 	UndoCount := 0;
 	RedoCount := 0;
 	UndoInProgress := False;
-	// Get OS-agnostic temp directory
-	TempDir := IncludeTrailingPathDelimiter(GetTempDir) + 'propulse_sample_undo' + PathDelim;
+	IsDrawing := False;
+	FDrawOccurred := False;
+	// Get OS-specific temp directory (always writable)
+	TempDir := GetOSTempDir + 'propulse_sample_undo' + PathDelim;
 	ForceDirectories(TempDir);
 	TempFiles := TStringList.Create;
 end;

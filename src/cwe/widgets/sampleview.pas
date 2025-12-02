@@ -561,7 +561,8 @@ function TSampleView.MouseDownEvent(Sender: TCWEControl;
 
 begin
 	inherited;
-	if (not WantMouse) or (ReadOnly) then Exit(False);
+	if (not WantMouse) or (ReadOnly) then
+		Exit(False);
 
 	Result := True;
 
@@ -574,6 +575,7 @@ begin
 			if ssCtrl in GetShiftState then
 			begin
 				CaptureMouse;
+				SampleEdit.StartDrawUndo; // Save backup BEFORE drawing starts
 				MouseAction := MOUSE_DRAW;
 				PrevMousePos := Point(-1, -1);
 				MouseMoveEvent(Self, X{+PixelRect.Left}, Y{+PixelRect.Top}, P);
@@ -610,6 +612,7 @@ begin
 		mbRight:
 		begin
 			CaptureMouse;
+			SampleEdit.StartDrawUndo; // Save backup BEFORE drawing starts
 			MouseAction := MOUSE_DRAW;
 			PrevMousePos := Point(-1, -1);
 			MouseMoveEvent(Self, X{+PixelRect.Left}, Y{+PixelRect.Top}, P);
@@ -689,6 +692,9 @@ begin
 					for X := X1 to X2 do
 						FSample.Data[X] := Byte(Y);
 					FSample.ZeroFirstWord;
+					
+					// Mark that drawing occurred so undo entry will be added
+					SampleEdit.DrawOccurred := True;
 
 					DrawWaveform;
 					Module.SetModified;
@@ -727,6 +733,11 @@ end;
 function TSampleView.MouseUpEvent(Sender: TCWEControl;
 	Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean;
 begin
+	// Always end draw undo if we were drawing, regardless of Capturing state
+	// This ensures every drawing operation is properly finalized
+	if MouseAction = MOUSE_DRAW then
+		SampleEdit.EndDrawUndo;
+	
 	if Capturing then
 	begin
 		Screen.MouseInfo.Capturing := False;
@@ -738,6 +749,10 @@ end;
 
 function TSampleView.MouseLeaveEvent(Sender: TCWEControl): Boolean;
 begin
+	// If we were drawing and mouse leaves, end the draw operation
+	if MouseAction = MOUSE_DRAW then
+		SampleEdit.EndDrawUndo;
+	
 	if MouseAction <> MOUSE_NONE then
 	begin
 		MouseAction := MOUSE_NONE;
