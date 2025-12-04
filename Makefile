@@ -91,126 +91,97 @@ else
   $(error Unknown target: $(TARGET). Use 'make help-targets' to see available targets)
 endif
 
-# Detect if we're cross-compiling
-IS_CROSS_COMPILE = 0
-USE_CROSS_COMPILER = 0
-ifeq ($(TARGET_OS),win64)
-  ifneq ($(HOST_OS),windows)
-    IS_CROSS_COMPILE = 1
-  endif
-else ifeq ($(TARGET_OS),linux)
-  ifneq ($(HOST_OS),linux)
-    IS_CROSS_COMPILE = 1
-  endif
-else ifeq ($(TARGET_OS),darwin)
-  ifneq ($(HOST_OS),darwin)
-    IS_CROSS_COMPILE = 1
-  endif
-endif
+# Cross-compilation configuration mapping table
+# Format: TARGET_OS-TARGET_CPU = cross_compiler_name,fallback_compiler,rtl_unit_dir,requires_host_check
+# Empty values mean: use native compiler, no RTL needed, no host check
+define CROSS_COMPILE_CONFIG
+win64-x86_64 = ppcrossx64,ppcx64,x86_64-win64,
+linux-x86_64 = ppcrossx64,,,darwin
+linux-aarch64 = ppcrossa64,,,
+endef
 
-# Select compiler based on target
+# Helper: Search for cross-compiler in common locations
+# Usage: $(call find_cross_compiler,compiler_name)
+find_cross_compiler = $(shell \
+  which $(1) 2>/dev/null | head -1 || \
+  find ~/fpcupdeluxe ~/fpcupdeluxe/fpc ~/Applications/fpcupdeluxe/fpc /usr/local/lib/fpc 2>/dev/null \
+    -name "$(1)" -type f 2>/dev/null | head -1 || \
+  find ~ -maxdepth 5 -path "*/fpcupdeluxe/*/fpc/bin/*/$(1)" -type f 2>/dev/null | head -1)
+
+# Helper: Search for RTL units directory
+# Usage: $(call find_rtl_path,unit_dir_name)
+find_rtl_path = $(shell \
+  find /usr/local/lib/fpc/$$(fpc -iV 2>/dev/null)/units 2>/dev/null \
+    -type d -name "$(1)" 2>/dev/null | head -1 || \
+  find ~/fpcupdeluxe ~/fpcupdeluxe/fpc ~/Applications/fpcupdeluxe/fpc 2>/dev/null \
+    -type d -name "$(1)" 2>/dev/null | head -1 || \
+  find ~ -maxdepth 6 -path "*/fpcupdeluxe/*/fpc/lib/fpc/*/units/$(1)" -type d 2>/dev/null | head -1)
+
+# Helper: Extract field from config entry (1=compiler, 2=fallback, 3=rtl, 4=host_check)
+comma := ,
+get_config_field = $(word $(2),$(subst $(comma), ,$(1)))
+
+# Get configuration for current target
+TARGET_KEY = $(TARGET_OS)-$(TARGET_CPU)
+TARGET_CONFIG = $(filter $(TARGET_KEY)%,$(CROSS_COMPILE_CONFIG))
+CROSS_COMPILER_NAME = $(call get_config_field,$(TARGET_CONFIG),1)
+FALLBACK_COMPILER = $(call get_config_field,$(TARGET_CONFIG),2)
+RTL_UNIT_DIR = $(call get_config_field,$(TARGET_CONFIG),3)
+REQUIRES_HOST_CHECK = $(call get_config_field,$(TARGET_CONFIG),4)
+
+# Detect if we're cross-compiling
+IS_CROSS_COMPILE = $(if $(and $(TARGET_CONFIG),$(filter-out $(TARGET_OS),$(HOST_OS))),1,0)
+
+# Select compiler based on target configuration
+USE_CROSS_COMPILER = 0
 ifeq ($(IS_CROSS_COMPILE),1)
-  # Cross-compilation: use cross-compiler binaries
-  ifeq ($(TARGET_OS),win64)
-    ifeq ($(TARGET_CPU),x86_64)
-      # For Windows x64, try in order:
-      # 1. ppcrossx64 (dedicated Windows cross-compiler, includes RTL)
-      # 2. ppcx64 -Twin64 (generic x86_64 compiler targeting Windows, needs RTL)
-      # 3. fpc -Twin64 -Px86_64 (fallback, needs RTL)
-      
-      # Search for ppcrossx64 in multiple locations
-      # Check PATH first, then fpcupdeluxe installation directories, then FPC lib directories
-      CROSS_COMPILER := $(shell which ppcrossx64 2>/dev/null | head -1)
-      ifeq ($(CROSS_COMPILER),)
-        # Check fpcupdeluxe typical installation locations (multiple possible base dirs)
-        FPCUPDELUXE_BASES := $(shell ls -d ~/fpcupdeluxe ~/fpcupdeluxe/fpc ~/Applications/fpcupdeluxe/fpc 2>/dev/null)
-        ifneq ($(FPCUPDELUXE_BASES),)
-          CROSS_COMPILER := $(shell find $(FPCUPDELUXE_BASES) -name "ppcrossx64" -type f 2>/dev/null | head -1)
-        endif
-      endif
-      ifeq ($(CROSS_COMPILER),)
-        # Check FPC lib directories
-        FPC_VERSION := $(shell fpc -iV 2>/dev/null)
-        CROSS_COMPILER := $(shell find /usr/local/lib/fpc/$(FPC_VERSION) -name "ppcrossx64" -type f 2>/dev/null | head -1)
-      endif
-      ifeq ($(CROSS_COMPILER),)
-        # Last resort: search common fpcupdeluxe installation patterns
-        CROSS_COMPILER := $(shell find ~ -maxdepth 5 -path "*/fpcupdeluxe/*/fpc/bin/*/ppcrossx64" -type f 2>/dev/null | head -1)
-      endif
-      
-      ifneq ($(CROSS_COMPILER),)
-        FPC = $(CROSS_COMPILER)
-        USE_CROSS_COMPILER = 1
-      else
-        # Try ppcx64 (generic x86_64 compiler that can target Windows)
-        GENERIC_X64_COMPILER := $(shell which ppcx64 2>/dev/null | head -1)
-        ifneq ($(GENERIC_X64_COMPILER),)
-          FPC = $(GENERIC_X64_COMPILER)
-          USE_CROSS_COMPILER = 0
-          # We'll add -Twin64 in the flags
-        else
-          # Fall back to fpc with explicit target flags (requires Windows RTL units)
-          FPC = fpc
-          USE_CROSS_COMPILER = 0
-        endif
-        # Check if Windows RTL units are available
-        # Note: ppcx64 can target Windows with -Twin64, but still needs Windows RTL units
-        FPC_VERSION := $(shell fpc -iV 2>/dev/null)
-        # Check multiple locations for Windows RTL units
-        WIN64_RTL_PATH := $(shell find /usr/local/lib/fpc/$(FPC_VERSION)/units -type d -name "x86_64-win64" 2>/dev/null | head -1)
-        ifeq ($(WIN64_RTL_PATH),)
-          # Check fpcupdeluxe installation directories (multiple possible locations)
-          FPCUPDELUXE_BASES := $(shell ls -d ~/fpcupdeluxe ~/fpcupdeluxe/fpc ~/Applications/fpcupdeluxe/fpc 2>/dev/null)
-          ifneq ($(FPCUPDELUXE_BASES),)
-            WIN64_RTL_PATH := $(shell find $(FPCUPDELUXE_BASES) -type d -name "x86_64-win64" 2>/dev/null | head -1)
-          endif
-        endif
-        ifeq ($(WIN64_RTL_PATH),)
-          # Last resort: search common fpcupdeluxe installation patterns
-          WIN64_RTL_PATH := $(shell find ~ -maxdepth 6 -path "*/fpcupdeluxe/*/fpc/lib/fpc/*/units/x86_64-win64" -type d 2>/dev/null | head -1)
-        endif
-        ifeq ($(WIN64_RTL_PATH),)
-          $(error Windows x64 RTL units not found. To cross-compile for Windows x64: \
-You have ppcx64 which can target Windows, but Windows RTL units are required. Options: \
-1. Install ppcrossx64 (includes Windows RTL units) using fpcupdeluxe: https://github.com/newpascal/fpcupdeluxe/releases \
-2. Build Windows RTL units from FPC source (see bootstrap-mac.sh for commented example) \
-3. Install Windows RTL units separately if available \
+  # Cross-compilation: try dedicated cross-compiler first
+  ifeq ($(REQUIRES_HOST_CHECK),darwin)
+    # Only use cross-compiler if host is macOS
+    ifeq ($(HOST_OS),darwin)
+      CROSS_COMPILER := $(if $(CROSS_COMPILER_NAME),$(call find_cross_compiler,$(CROSS_COMPILER_NAME)))
+      FPC = $(if $(CROSS_COMPILER),$(CROSS_COMPILER),fpc)
+      USE_CROSS_COMPILER = $(if $(CROSS_COMPILER),1,0)
+    else
+      FPC = fpc
+      USE_CROSS_COMPILER = 0
+    endif
+  else
+    # Try cross-compiler, then fallback, then fpc
+    CROSS_COMPILER := $(if $(CROSS_COMPILER_NAME),$(call find_cross_compiler,$(CROSS_COMPILER_NAME)))
+    ifneq ($(CROSS_COMPILER),)
+      FPC = $(CROSS_COMPILER)
+      USE_CROSS_COMPILER = 1
+    else ifneq ($(FALLBACK_COMPILER),)
+      FALLBACK := $(shell which $(FALLBACK_COMPILER) 2>/dev/null | head -1)
+      FPC = $(if $(FALLBACK),$(FALLBACK),fpc)
+      USE_CROSS_COMPILER = 0
+    else
+      FPC = fpc
+      USE_CROSS_COMPILER = 0
+    endif
+    
+    # Check for RTL units if required and not using dedicated cross-compiler
+    ifneq ($(RTL_UNIT_DIR),)
+      ifeq ($(USE_CROSS_COMPILER),0)
+        RTL_PATH := $(call find_rtl_path,$(RTL_UNIT_DIR))
+        ifeq ($(RTL_PATH),)
+          $(error $(TARGET_OS) $(TARGET_CPU) RTL units not found. To cross-compile: \
+1. Install $(CROSS_COMPILER_NAME) (includes RTL units) using fpcupdeluxe: https://github.com/newpascal/fpcupdeluxe/releases \
+2. Build RTL units from FPC source (see bootstrap-mac.sh for commented example) \
+3. Install RTL units separately if available \
 Note: If you installed via fpcupdeluxe, ensure the installation completed successfully.)
         endif
-        # Store WIN64_RTL_PATH for use in unit paths
-        WIN64_RTL_UNIT_PATH := $(WIN64_RTL_PATH)
-      endif
-    endif
-  else ifeq ($(TARGET_OS),linux)
-    ifeq ($(TARGET_CPU),x86_64)
-      # For Linux x64, check if we're on macOS and need ppcrossx64, or use native compiler
-      ifeq ($(HOST_OS),darwin)
-        CROSS_COMPILER := $(shell which ppcrossx64 2>/dev/null | head -1)
-        ifneq ($(CROSS_COMPILER),)
-          FPC = $(CROSS_COMPILER)
-          USE_CROSS_COMPILER = 1
-        else
-          FPC = fpc
-          USE_CROSS_COMPILER = 0
+        # Store RTL path in OS-specific variable for later use
+        ifeq ($(TARGET_OS),win64)
+          WIN64_RTL_UNIT_PATH := $(RTL_PATH)
         endif
-      else
-        FPC = fpc
-        USE_CROSS_COMPILER = 0
-      endif
-    else ifeq ($(TARGET_CPU),aarch64)
-      CROSS_COMPILER := $(shell which ppcrossa64 2>/dev/null | head -1)
-      ifneq ($(CROSS_COMPILER),)
-        FPC = $(CROSS_COMPILER)
-        USE_CROSS_COMPILER = 1
-      else
-        FPC = fpc
-        USE_CROSS_COMPILER = 0
       endif
     endif
   endif
 else
   # Native compilation: use regular fpc
-FPC = fpc
+  FPC = fpc
   USE_CROSS_COMPILER = 0
 endif
 
@@ -226,140 +197,117 @@ UNIT_PATHS = \
 	-Fu$(SRC_DIR)/include/bass \
 	-Fu$(SRC_DIR)/include/generics.collections/src
 
-# Add Windows RTL unit path if cross-compiling for Windows and RTL path was found
+# Add FCL JSON unit path for macOS builds
+ifeq ($(TARGET_OS),darwin)
+  # Try to find FCL JSON units in common FPC installation locations
+  FCL_JSON_PATH := $(shell find /usr/local/lib/fpc -type d -name "fcl-json" 2>/dev/null | head -1)
+  ifeq ($(FCL_JSON_PATH),)
+    FCL_JSON_PATH := $(shell find /opt/homebrew/lib/fpc -type d -name "fcl-json" 2>/dev/null | head -1)
+  endif
+  ifneq ($(FCL_JSON_PATH),)
+    UNIT_PATHS += -Fu$(FCL_JSON_PATH)
+  else
+    # Fallback: try common FPC installation paths
+    ifeq ($(TARGET_CPU),aarch64)
+      UNIT_PATHS += -Fu/usr/local/lib/fpc/3.2.2/units/aarch64-darwin/fcl-json
+    else
+      UNIT_PATHS += -Fu/usr/local/lib/fpc/3.2.2/units/x86_64-darwin/fcl-json
+    endif
+  endif
+endif
+
+# Add RTL unit paths if cross-compiling for Windows and RTL path was found
 # Include all subdirectories to ensure all Windows RTL, FCL, and Windows-specific units are found
 ifeq ($(TARGET_OS),win64)
   ifdef WIN64_RTL_UNIT_PATH
     # Add RTL unit paths
     UNIT_PATHS += -Fu$(WIN64_RTL_UNIT_PATH)/rtl -Fu$(WIN64_RTL_UNIT_PATH) -Fu$(WIN64_RTL_UNIT_PATH)/rtl-generics -Fu$(WIN64_RTL_UNIT_PATH)/rtl-objpas -Fu$(WIN64_RTL_UNIT_PATH)/rtl-win
     # Add FCL (Free Component Library) unit paths
-    UNIT_PATHS += -Fu$(WIN64_RTL_UNIT_PATH)/fcl-base -Fu$(WIN64_RTL_UNIT_PATH)/fcl-extra -Fu$(WIN64_RTL_UNIT_PATH)/fcl-process -Fu$(WIN64_RTL_UNIT_PATH)/fcl-net
+    UNIT_PATHS += -Fu$(WIN64_RTL_UNIT_PATH)/fcl-base -Fu$(WIN64_RTL_UNIT_PATH)/fcl-extra -Fu$(WIN64_RTL_UNIT_PATH)/fcl-process -Fu$(WIN64_RTL_UNIT_PATH)/fcl-net -Fu$(WIN64_RTL_UNIT_PATH)/fcl-json
     # Add Windows-specific unit paths
     UNIT_PATHS += -Fu$(WIN64_RTL_UNIT_PATH)/winunits-base -Fu$(WIN64_RTL_UNIT_PATH)/winunits-extra
   endif
 endif
 
 # Compiler flags base
-# When using dedicated cross-compilers (ppcross*), -T and -P are implicit
-# When using fpc with -T/-P flags, we need to specify them explicitly
+# Common flags for all compilation modes
+FPC_FLAGS_BASE = \
+	-Mdelphi \
+	-Sc \
+	-Cg \
+	-Fi$(SRC_DIR) \
+	-Fl$(SRC_DIR)/include/sdl2 \
+	-Fl$(SRC_DIR)/include/bass \
+	-FE$(BIN_DIR) \
+	-FU$(UNIT_OUTPUT_DIR) \
+	-Xd
+
+# Add target flags only when not using dedicated cross-compiler
+# (dedicated cross-compilers like ppcrossx64 have -T/-P implicit)
 ifeq ($(IS_CROSS_COMPILE),1)
-  ifeq ($(USE_CROSS_COMPILER),1)
-    # Using dedicated cross-compiler (ppcrossx64, etc.) - no need for -T/-P
-    FPC_FLAGS_BASE = \
-	-Mdelphi \
-	-Sc \
-	-Cg \
-	-Fi$(SRC_DIR) \
-	-Fl$(SRC_DIR)/include/sdl2 \
-	-Fl$(SRC_DIR)/include/bass \
-	-FE$(BIN_DIR) \
-	-FU$(UNIT_OUTPUT_DIR) \
-	-Xd
-  else
-    # Using fpc with cross-compilation flags - need -T and -P
-    FPC_FLAGS_BASE = \
-	-T$(TARGET_OS) \
-	-P$(TARGET_CPU) \
-	-Mdelphi \
-	-Sc \
-	-Cg \
-	-Fi$(SRC_DIR) \
-	-Fl$(SRC_DIR)/include/sdl2 \
-	-Fl$(SRC_DIR)/include/bass \
-	-FE$(BIN_DIR) \
-	-FU$(UNIT_OUTPUT_DIR) \
-	-Xd
+  ifeq ($(USE_CROSS_COMPILER),0)
+    FPC_FLAGS_BASE += -T$(TARGET_OS) -P$(TARGET_CPU)
   endif
 else
-  # Native compilation
-FPC_FLAGS_BASE = \
-	-T$(TARGET_OS) \
-	-P$(TARGET_CPU) \
-	-Mdelphi \
-	-Sc \
-	-Cg \
-	-Fi$(SRC_DIR) \
-	-Fl$(SRC_DIR)/include/sdl2 \
-	-Fl$(SRC_DIR)/include/bass \
-	-FE$(BIN_DIR) \
-	-FU$(UNIT_OUTPUT_DIR) \
-	-Xd
+  # Native compilation always needs explicit target flags
+  FPC_FLAGS_BASE += -T$(TARGET_OS) -P$(TARGET_CPU)
 endif
 
-# Release mode flags
-FPC_FLAGS_RELEASE = \
+# Common flags shared between release and debug modes
+FPC_FLAGS_COMMON = \
 	$(FPC_FLAGS_BASE) \
-	-O3 \
-	-XX \
-	-Xs \
 	-gl \
-	-gv \
-	-dRELEASE \
 	-dBASS_DYNAMIC \
 	-dDISABLE_SDL2_2_0_5 \
 	-dDISABLE_SDL2_2_0_4 \
 	$(PLATFORM_DEFINES)
+
+# Release mode flags
+FPC_FLAGS_RELEASE = \
+	$(FPC_FLAGS_COMMON) \
+	-O3 \
+	-XX \
+	-Xs \
+	-gv \
+	-dRELEASE
 
 # Debug mode flags
 # -g: Generate debug information
 # -gl: Generate line info (needed for stack traces - includes lineinfo unit)
 # -gw: Generate DWARF debug info (required for macOS symbolication with atos/dsymutil)
+# -gs: Generate Stabs debug info (for non-macOS platforms)
 # -gh: Generate heap trace
-# Note: On macOS, use -gw (DWARF) for proper symbolication with atos/dsymutil
-# -gl may output file:line directly, but if not, DWARF + dSYM allows atos to work
 # -Cr: Range checking
 # -Ct: Stack checking  
 # -Ci: I/O checking
 # -Co: Overflow checking
 # -Sa: Assertions
+FPC_FLAGS_DEBUG = \
+	$(FPC_FLAGS_COMMON) \
+	-g \
+	-gh \
+	-Cr \
+	-Ct \
+	-Ci \
+	-Co \
+	-Sa \
+	-dDEBUG
+
+# Add platform-specific debug format
+# macOS: Use DWARF (-gw) for proper symbolication with atos/dsymutil
+# Other platforms: Use Stabs (-gs) or let FPC choose
 ifeq ($(TARGET_OS),darwin)
-  # macOS: Use DWARF (-gw) with lineinfo (-gl)
-  # -gw: Generate DWARF debug info for atos/dsymutil symbolication
-  # -gl: Includes lineinfo unit for DumpExceptionBackTrace (uses DWARF lineinfo with -gw)
-  # Note: DumpExceptionBackTrace may still show addresses, but symbolicate.sh can resolve them
-  FPC_FLAGS_DEBUG = \
-	$(FPC_FLAGS_BASE) \
-	-g \
-	-gl \
-	-gw \
-	-gh \
-	-Cr \
-	-Ct \
-	-Ci \
-	-Co \
-	-Sa \
-	-dDEBUG \
-	-dBASS_DYNAMIC \
-	-dDISABLE_SDL2_2_0_5 \
-	-dDISABLE_SDL2_2_0_4 \
-	$(PLATFORM_DEFINES)
+  FPC_FLAGS_DEBUG += -gw
 else
-  # Other platforms: Use Stabs (or let FPC choose)
-  FPC_FLAGS_DEBUG = \
-	$(FPC_FLAGS_BASE) \
-	-g \
-	-gl \
-	-gs \
-	-gh \
-	-Cr \
-	-Ct \
-	-Ci \
-	-Co \
-	-Sa \
-	-dDEBUG \
-	-dBASS_DYNAMIC \
-	-dDISABLE_SDL2_2_0_5 \
-	-dDISABLE_SDL2_2_0_4 \
-	$(PLATFORM_DEFINES)
+  FPC_FLAGS_DEBUG += -gs
 endif
 
 # Source files
 MAIN_SOURCE = $(SRC_DIR)/propulse.pas
 RESOURCE_FILE = $(SRC_DIR)/propulse.res
 
-# Find all Pascal source files for dependency tracking
-# This ensures Make detects changes in any source file and triggers rebuild
-ALL_PAS_FILES = $(shell find $(SRC_DIR) -name "*.pas" -type f 2>/dev/null | sort)
+# FPC handles dependency tracking via .ppu files automatically
+# We only need to depend on the main source file; FPC will rebuild units as needed
 
 # Output binary names (output directly to BIN_DIR)
 ifeq ($(MODE),debug)
@@ -392,21 +340,41 @@ debug: $(OUTPUT_BINARY)
 	fi
 
 # Build binary
-# Note: FPC handles its own dependency tracking via .ppu files
-# Adding -B flag ensures FPC checks all dependencies
-# Depend on all .pas files so Make detects changes and triggers rebuild
-$(OUTPUT_BINARY): $(MAIN_SOURCE) $(RESOURCE_FILE) $(ALL_PAS_FILES)
+# FPC handles dependency tracking via .ppu files automatically
+# Only depend on main source and resource file; FPC will rebuild units incrementally
+$(OUTPUT_BINARY): $(MAIN_SOURCE) $(RESOURCE_FILE)
 	@echo "Building $(PROJECT_NAME) for $(TARGET) ($(MODE))..."
 	@echo "  Target: $(TARGET_CPU)-$(TARGET_OS)"
 	@mkdir -p $(UNIT_OUTPUT_DIR)
 	@mkdir -p $(BIN_DIR)
-	$(FPC) -B $(FPC_FLAGS) $(UNIT_PATHS) $(MAIN_SOURCE) -o$(OUTPUT_BINARY) \
+	$(FPC) $(FPC_FLAGS) $(UNIT_PATHS) $(MAIN_SOURCE) -o$(OUTPUT_BINARY) \
 		-k-lSDL2 -k-lbass -k-lsoxr $(LIB_PATHS)
 	@echo "Build complete: $(OUTPUT_BINARY)"
 	@if [ -d "$(LIB_DIR)" ]; then \
 		echo "Copying libraries from $(LIB_DIR) to $(BIN_DIR)..."; \
 		cp $(LIB_DIR)/* $(BIN_DIR)/ 2>/dev/null || true; \
 	fi
+	@echo "Setting up data and docs directories..."
+	@if [ ! -e "$(BIN_DIR)/data" ]; then \
+		if [ -d "data" ]; then \
+			ln -sf ../data $(BIN_DIR)/data || cp -r data $(BIN_DIR)/data; \
+			echo "  Created data link/directory in $(BIN_DIR)"; \
+		else \
+			echo "  Warning: data directory not found in project root"; \
+		fi; \
+	fi
+	@if [ ! -e "$(BIN_DIR)/docs" ]; then \
+		if [ -d "docs" ]; then \
+			ln -sf ../docs $(BIN_DIR)/docs || cp -r docs $(BIN_DIR)/docs; \
+			echo "  Created docs link/directory in $(BIN_DIR)"; \
+		else \
+			echo "  Warning: docs directory not found in project root"; \
+		fi; \
+	fi
+
+# Rebuild target: forces full rebuild by cleaning units first
+rebuild: clean
+	@$(MAKE) $(MODE) TARGET=$(TARGET)
 
 # Fix dylib paths (macOS only)
 # Automatically called for macOS builds via POST_BUILD
@@ -439,24 +407,44 @@ fix-dylib-paths:
 	fi
 	@echo "Dylib paths fixed."
 
-# Build all targets
-all-targets:
-	@echo "Building all targets..."
+# Individual target builds (can be built in parallel)
+build-macos-arm64-release:
 	@$(MAKE) TARGET=macos-arm64 MODE=release
+
+build-windows-x64-release:
 	@$(MAKE) TARGET=windows-x64 MODE=release
-	#@$(MAKE) TARGET=macos-x86 MODE=release
-	#@$(MAKE) TARGET=linux-x64 MODE=release
-	#@$(MAKE) TARGET=linux-arm64 MODE=release
+
+#build-macos-x86-release:
+#	@$(MAKE) TARGET=macos-x86 MODE=release
+
+#build-linux-x64-release:
+#	@$(MAKE) TARGET=linux-x64 MODE=release
+
+#build-linux-arm64-release:
+#	@$(MAKE) TARGET=linux-arm64 MODE=release
+
+# Build all targets (parallelizable with -j)
+all-targets: build-macos-arm64-release build-windows-x64-release
 	@echo "All targets built!"
 
-# Build all targets (debug)
-all-targets-debug:
-	@echo "Building all targets (debug)..."
+# Individual target builds (debug, can be built in parallel)
+build-macos-arm64-debug:
 	@$(MAKE) TARGET=macos-arm64 MODE=debug
+
+build-windows-x64-debug:
 	@$(MAKE) TARGET=windows-x64 MODE=debug
-	#@$(MAKE) TARGET=macos-x86 MODE=debug
-	#@$(MAKE) TARGET=linux-x64 MODE=debug
-	#@$(MAKE) TARGET=linux-arm64 MODE=debug
+
+#build-macos-x86-debug:
+#	@$(MAKE) TARGET=macos-x86 MODE=debug
+
+#build-linux-x64-debug:
+#	@$(MAKE) TARGET=linux-x64 MODE=debug
+
+#build-linux-arm64-debug:
+#	@$(MAKE) TARGET=linux-arm64 MODE=debug
+
+# Build all targets (debug, parallelizable with -j)
+all-targets-debug: build-macos-arm64-debug build-windows-x64-debug
 	@echo "All targets built (debug)!"
 
 # Clean build artifacts for current target
@@ -465,9 +453,6 @@ clean:
 	rm -rf $(UNIT_OUTPUT_DIR)
 	rm -rf $(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)*.dSYM
 	rm -f $(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)*
-	rm -f $(BIN_DIR)/*.dylib $(BIN_DIR)/*.dll $(BIN_DIR)/*.so 2>/dev/null || true
-	rm -f $(OUTPUT_DIR)/*.o
-	rm -f $(OUTPUT_DIR)/*.ppu
 	@echo "Clean complete."
 
 # Clean everything including compiled units
@@ -512,6 +497,7 @@ help:
 	@echo ""
 	@echo "Other commands:"
 	@echo "  make clean                    # Clean current target"
+	@echo "  make rebuild                  # Force full rebuild (clean + build)"
 	@echo "  make clean-all-targets        # Clean all targets"
 	@echo "  make distclean                # Clean everything"
 	@echo "  make help-targets             # List all targets"
@@ -593,8 +579,8 @@ package-windows-x64: $(BIN_DIR)/$(PROJECT_NAME)-windows-x64.exe
 		cp license.txt $$PACKAGE_DIR/$$PACKAGE_NAME/; \
 	fi; \
 	echo "  Creating ZIP archive..."; \
-	mkdir -p $(BIN_DIR); \
-	ZIP_FILE="$$(cd $(BIN_DIR) && pwd)/$$PACKAGE_NAME.zip"; \
+	mkdir -p release; \
+	ZIP_FILE="$$(cd release && pwd)/$$PACKAGE_NAME.zip"; \
 	cd $$PACKAGE_DIR && zip -q -r "$$ZIP_FILE" $$PACKAGE_NAME 2>&1 || (echo "Error: zip command failed. Is zip installed?" && rm -rf $$PACKAGE_DIR && exit 1); \
 	rm -rf $$PACKAGE_DIR; \
 	echo "Package created: $$ZIP_FILE"
@@ -646,8 +632,8 @@ package-macos-arm64: $(BIN_DIR)/$(PROJECT_NAME)-macos-arm64
 		cp license.txt $$PACKAGE_DIR/$$PACKAGE_NAME/; \
 	fi; \
 	echo "  Creating ZIP archive..."; \
-	mkdir -p $(BIN_DIR); \
-	ZIP_FILE="$$(cd $(BIN_DIR) && pwd)/$$PACKAGE_NAME.zip"; \
+	mkdir -p release; \
+	ZIP_FILE="$$(cd release && pwd)/$$PACKAGE_NAME.zip"; \
 	cd $$PACKAGE_DIR && zip -q -r "$$ZIP_FILE" $$PACKAGE_NAME 2>&1 || (echo "Error: zip command failed. Is zip installed?" && rm -rf $$PACKAGE_DIR && exit 1); \
 	rm -rf $$PACKAGE_DIR; \
 	echo "Package created: $$ZIP_FILE"
@@ -704,13 +690,9 @@ package-macos-arm64: $(BIN_DIR)/$(PROJECT_NAME)-macos-arm64
 #	rm -rf $$PACKAGE_DIR; \
 #	echo "Package created: $$ZIP_FILE"
 
-# Package all targets
-package-all-targets:
-	@echo "Packaging all targets..."
-	@$(MAKE) package-windows-x64
-	@$(MAKE) package-macos-arm64
-	#@$(MAKE) package-macos-x86
+# Package all targets (parallelizable with -j)
+package-all-targets: package-windows-x64 package-macos-arm64
 	@echo "All targets packaged!"
 
-.PHONY: all release debug clean distclean clean-all-targets all-targets all-targets-debug help help-targets fix-dylib-paths package-windows-x64 package-macos-arm64 package-all-targets
+.PHONY: all release debug rebuild clean distclean clean-all-targets all-targets all-targets-debug build-macos-arm64-release build-windows-x64-release build-macos-arm64-debug build-windows-x64-debug help help-targets fix-dylib-paths package-windows-x64 package-macos-arm64 package-all-targets
 #package-macos-x86
