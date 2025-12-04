@@ -108,14 +108,27 @@ find_cross_compiler = $(shell \
     -name "$(1)" -type f 2>/dev/null | head -1 || \
   find ~ -maxdepth 5 -path "*/fpcupdeluxe/*/fpc/bin/*/$(1)" -type f 2>/dev/null | head -1)
 
+# Get HOME directory at Make parse time
+HOME_DIR := $(shell echo $$HOME)
+
 # Helper: Search for RTL units directory
 # Usage: $(call find_rtl_path,unit_dir_name)
+# Searches in standard FPC locations and fpcupdeluxe installations
 find_rtl_path = $(shell \
-  find /usr/local/lib/fpc/$$(fpc -iV 2>/dev/null)/units 2>/dev/null \
-    -type d -name "$(1)" 2>/dev/null | head -1 || \
-  find ~/fpcupdeluxe ~/fpcupdeluxe/fpc ~/Applications/fpcupdeluxe/fpc 2>/dev/null \
-    -type d -name "$(1)" 2>/dev/null | head -1 || \
-  find ~ -maxdepth 6 -path "*/fpcupdeluxe/*/fpc/lib/fpc/*/units/$(1)" -type d 2>/dev/null | head -1)
+  RESULT=$$(find /usr/local/lib/fpc/$$(fpc -iV 2>/dev/null)/units 2>/dev/null -type d -name "$(1)" 2>/dev/null | head -1); \
+  if [ -z "$$RESULT" ]; then \
+    RESULT=$$(find $(HOME_DIR)/Applications/fpcupdeluxe/fpc/units -type d -name "$(1)" 2>/dev/null | head -1); \
+  fi; \
+  if [ -z "$$RESULT" ]; then \
+    RESULT=$$(find $(HOME_DIR)/fpcupdeluxe $(HOME_DIR)/fpcupdeluxe/fpc -type d -name "$(1)" 2>/dev/null | head -1); \
+  fi; \
+  if [ -z "$$RESULT" ]; then \
+    RESULT=$$(find $(HOME_DIR) -maxdepth 6 -path "*/fpcupdeluxe/*/fpc/lib/fpc/*/units/$(1)" -type d 2>/dev/null | head -1); \
+  fi; \
+  if [ -z "$$RESULT" ]; then \
+    RESULT=$$(find $(HOME_DIR) -maxdepth 6 -path "*/fpcupdeluxe/*/fpc/units/$(1)" -type d 2>/dev/null | head -1); \
+  fi; \
+  echo $$RESULT)
 
 # Helper: Extract field from config entry (1=compiler, 2=fallback, 3=rtl, 4=host_check)
 comma := ,
@@ -123,7 +136,9 @@ get_config_field = $(word $(2),$(subst $(comma), ,$(1)))
 
 # Get configuration for current target
 TARGET_KEY = $(TARGET_OS)-$(TARGET_CPU)
-TARGET_CONFIG = $(filter $(TARGET_KEY)%,$(CROSS_COMPILE_CONFIG))
+# Extract the config line: find line starting with TARGET_KEY, then get the value part after "="
+# CROSS_COMPILE_CONFIG is a multi-line variable, need to preserve newlines for grep
+TARGET_CONFIG = $(shell printf '%s\n' '$(CROSS_COMPILE_CONFIG)' | grep '^$(TARGET_KEY) =' | sed 's/^$(TARGET_KEY) =//')
 CROSS_COMPILER_NAME = $(call get_config_field,$(TARGET_CONFIG),1)
 FALLBACK_COMPILER = $(call get_config_field,$(TARGET_CONFIG),2)
 RTL_UNIT_DIR = $(call get_config_field,$(TARGET_CONFIG),3)
@@ -154,23 +169,33 @@ ifeq ($(IS_CROSS_COMPILE),1)
       USE_CROSS_COMPILER = 1
     else ifneq ($(FALLBACK_COMPILER),)
       FALLBACK := $(shell which $(FALLBACK_COMPILER) 2>/dev/null | head -1)
-      FPC = $(if $(FALLBACK),$(FALLBACK),fpc)
-      USE_CROSS_COMPILER = 0
+      ifneq ($(FALLBACK),)
+        FPC = $(FALLBACK)
+        # Fallback compiler (like ppcx64) is still a cross-compiler, but may need explicit RTL paths
+        USE_CROSS_COMPILER = 0
+      else
+        FPC = fpc
+        USE_CROSS_COMPILER = 0
+      endif
     else
       FPC = fpc
       USE_CROSS_COMPILER = 0
     endif
     
     # Check for RTL units if required and not using dedicated cross-compiler
+    # This includes fallback compilers like ppcx64 which may need explicit RTL paths
     ifneq ($(RTL_UNIT_DIR),)
       ifeq ($(USE_CROSS_COMPILER),0)
+        RTL_UNIT_DIR := $(strip $(RTL_UNIT_DIR))
         RTL_PATH := $(call find_rtl_path,$(RTL_UNIT_DIR))
+        RTL_PATH := $(strip $(RTL_PATH))
         ifeq ($(RTL_PATH),)
           $(error $(TARGET_OS) $(TARGET_CPU) RTL units not found. To cross-compile: \
 1. Install $(CROSS_COMPILER_NAME) (includes RTL units) using fpcupdeluxe: https://github.com/newpascal/fpcupdeluxe/releases \
 2. Build RTL units from FPC source (see bootstrap-mac.sh for commented example) \
 3. Install RTL units separately if available \
-Note: If you installed via fpcupdeluxe, ensure the installation completed successfully.)
+Note: If you installed via fpcupdeluxe, ensure the installation completed successfully. \
+Current compiler: $(FPC))
         endif
         # Store RTL path in OS-specific variable for later use
         ifeq ($(TARGET_OS),win64)
@@ -306,8 +331,10 @@ endif
 MAIN_SOURCE = $(SRC_DIR)/propulse.pas
 RESOURCE_FILE = $(SRC_DIR)/propulse.res
 
-# FPC handles dependency tracking via .ppu files automatically
-# We only need to depend on the main source file; FPC will rebuild units as needed
+# Find all Pascal source files for dependency tracking
+# Make needs to know when any source file changes to trigger FPC
+# FPC then handles incremental compilation via .ppu files
+ALL_PAS_FILES = $(shell find $(SRC_DIR) -name "*.pas" -type f 2>/dev/null | sort)
 
 # Output binary names (output directly to BIN_DIR)
 ifeq ($(MODE),debug)
@@ -318,31 +345,50 @@ else
   FPC_FLAGS = $(FPC_FLAGS_RELEASE)
 endif
 
-# Default target
-all: $(MODE)
+# Default target (builds current target in release mode)
+all: release-target
 
-# Release build
-release: $(OUTPUT_BINARY)
+# Release build for current target
+release-target:
+	@$(MAKE) MODE=release TARGET=$(TARGET) $(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)$(BINARY_EXT)
 	@if [ -n "$(POST_BUILD)" ]; then \
-		$(MAKE) $(POST_BUILD) BINARY=$(OUTPUT_BINARY); \
+		$(MAKE) MODE=release TARGET=$(TARGET) $(POST_BUILD) BINARY=$(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)$(BINARY_EXT); \
 	fi
 
-# Debug build
-debug: $(OUTPUT_BINARY)
-	@if [ -n "$(POST_BUILD)" ]; then \
-		$(MAKE) $(POST_BUILD) BINARY=$(OUTPUT_BINARY); \
+# Release build: build all targets and create packages
+# Builds all targets (shows errors), then packages what was successfully built
+release:
+	@BUILD_FAILED=0; \
+	$(MAKE) all-targets || BUILD_FAILED=1; \
+	$(MAKE) package-all-targets; \
+	if [ "$$BUILD_FAILED" = "1" ]; then \
+		echo "Release build completed with errors - some targets failed to build"; \
+		exit 1; \
+	else \
+		echo "Release build complete: all targets built and packaged!"; \
 	fi
-	@if [ "$(TARGET_OS)" = "darwin" ] && [ "$(MODE)" = "debug" ]; then \
+
+# Debug build for current target
+debug-target:
+	@$(MAKE) MODE=debug TARGET=$(TARGET) $(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)-debug$(BINARY_EXT)
+	@if [ -n "$(POST_BUILD)" ]; then \
+		$(MAKE) MODE=debug TARGET=$(TARGET) $(POST_BUILD) BINARY=$(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)-debug$(BINARY_EXT); \
+	fi
+	@if [ "$(TARGET_OS)" = "darwin" ]; then \
 		echo "Generating dSYM for macOS symbolication..."; \
-		dsymutil $(OUTPUT_BINARY) 2>&1 | grep -v "warning:.*no debug symbols" || true; \
+		dsymutil $(BIN_DIR)/$(PROJECT_NAME)-$(TARGET)-debug$(BINARY_EXT) 2>&1 | grep -v "warning:.*no debug symbols" || true; \
 		echo "Note: FreePascal's DWARF output has limited location info for functions."; \
 		echo "      Use ./symbolicate.sh for symbolication (uses nm fallback)."; \
 	fi
 
+# Debug build: build all targets (debug mode)
+debug: all-targets-debug
+	@echo "Debug build complete: all targets built!"
+
 # Build binary
-# FPC handles dependency tracking via .ppu files automatically
-# Only depend on main source and resource file; FPC will rebuild units incrementally
-$(OUTPUT_BINARY): $(MAIN_SOURCE) $(RESOURCE_FILE)
+# Depend on all source files so Make detects changes and triggers rebuild
+# FPC handles incremental compilation via .ppu files once triggered
+$(OUTPUT_BINARY): $(MAIN_SOURCE) $(RESOURCE_FILE) $(ALL_PAS_FILES)
 	@echo "Building $(PROJECT_NAME) for $(TARGET) ($(MODE))..."
 	@echo "  Target: $(TARGET_CPU)-$(TARGET_OS)"
 	@mkdir -p $(UNIT_OUTPUT_DIR)
@@ -407,41 +453,41 @@ fix-dylib-paths:
 	fi
 	@echo "Dylib paths fixed."
 
-# Individual target builds (can be built in parallel)
+# Individual target builds (can be built in parallel with -j)
 build-macos-arm64-release:
-	@$(MAKE) TARGET=macos-arm64 MODE=release
+	$(MAKE) TARGET=macos-arm64 release-target
 
 build-windows-x64-release:
-	@$(MAKE) TARGET=windows-x64 MODE=release
+	$(MAKE) TARGET=windows-x64 release-target
 
 #build-macos-x86-release:
-#	@$(MAKE) TARGET=macos-x86 MODE=release
+#	$(MAKE) TARGET=macos-x86 MODE=release
 
 #build-linux-x64-release:
-#	@$(MAKE) TARGET=linux-x64 MODE=release
+#	$(MAKE) TARGET=linux-x64 MODE=release
 
 #build-linux-arm64-release:
-#	@$(MAKE) TARGET=linux-arm64 MODE=release
+#	$(MAKE) TARGET=linux-arm64 MODE=release
 
 # Build all targets (parallelizable with -j)
 all-targets: build-macos-arm64-release build-windows-x64-release
 	@echo "All targets built!"
 
-# Individual target builds (debug, can be built in parallel)
+# Individual target builds (debug, can be built in parallel with -j)
 build-macos-arm64-debug:
-	@$(MAKE) TARGET=macos-arm64 MODE=debug
+	$(MAKE) TARGET=macos-arm64 debug-target
 
 build-windows-x64-debug:
-	@$(MAKE) TARGET=windows-x64 MODE=debug
+	$(MAKE) TARGET=windows-x64 debug-target
 
 #build-macos-x86-debug:
-#	@$(MAKE) TARGET=macos-x86 MODE=debug
+#	$(MAKE) TARGET=macos-x86 MODE=debug
 
 #build-linux-x64-debug:
-#	@$(MAKE) TARGET=linux-x64 MODE=debug
+#	$(MAKE) TARGET=linux-x64 MODE=debug
 
 #build-linux-arm64-debug:
-#	@$(MAKE) TARGET=linux-arm64 MODE=debug
+#	$(MAKE) TARGET=linux-arm64 MODE=debug
 
 # Build all targets (debug, parallelizable with -j)
 all-targets-debug: build-macos-arm64-debug build-windows-x64-debug
@@ -483,10 +529,13 @@ help:
 	@echo "Examples:"
 	@echo "  make                          # Build for host platform (release)"
 	@echo "  make TARGET=macos-arm64       # Build for macOS ARM64"
-	@echo "  make TARGET=windows-x64 release  # Build for Windows x64"
-	@#echo "  make TARGET=linux-x64 debug   # Build debug for Linux x64"
+	@echo "  make TARGET=windows-x64 release-target  # Build for Windows x64"
+	@echo "  make release                  # Build all targets and create packages"
+	@echo "  make debug                    # Build all targets (debug mode)"
+	@#echo "  make TARGET=linux-x64 debug-target   # Build debug for Linux x64"
 	@echo "  make all-targets              # Build all targets"
 	@echo "  make all-targets-debug        # Build all targets (debug)"
+	@echo "  make package-all-targets      # Package all targets"
 	@echo ""
 	@echo "Available targets:"
 	@echo "  macos-arm64    - macOS ARM64 (Apple Silicon)"
@@ -498,6 +547,8 @@ help:
 	@echo "Other commands:"
 	@echo "  make clean                    # Clean current target"
 	@echo "  make rebuild                  # Force full rebuild (clean + build)"
+	@echo "  make release-target           # Build current target (release)"
+	@echo "  make debug-target             # Build current target (debug)"
 	@echo "  make clean-all-targets        # Clean all targets"
 	@echo "  make distclean                # Clean everything"
 	@echo "  make help-targets             # List all targets"
@@ -537,14 +588,14 @@ help-targets:
 # Note: PACKAGE_NAME is set per-target below to avoid variable expansion issues
 
 # Package for Windows
-package-windows-x64: $(BIN_DIR)/$(PROJECT_NAME)-windows-x64.exe
-	@echo "Packaging $(PROJECT_NAME) for Windows x64..."
-	@PACKAGE_DIR="$(BIN_DIR)/package-windows-x64"; \
-	PACKAGE_NAME="$(PROJECT_NAME)-windows-x64"; \
-	if [ ! -f "$(BIN_DIR)/$(PROJECT_NAME)-windows-x64.exe" ]; then \
-		echo "Error: Binary not found. Build it first with: make TARGET=windows-x64 release"; \
-		exit 1; \
+package-windows-x64:
+	@if [ ! -f "$(BIN_DIR)/$(PROJECT_NAME)-windows-x64.exe" ]; then \
+		echo "Skipping Windows x64 package: binary not found. Build it first with: make TARGET=windows-x64 release-target"; \
+		exit 0; \
 	fi; \
+	echo "Packaging $(PROJECT_NAME) for Windows x64..."; \
+	PACKAGE_DIR="$(BIN_DIR)/package-windows-x64"; \
+	PACKAGE_NAME="$(PROJECT_NAME)-windows-x64"; \
 	rm -rf $$PACKAGE_DIR; \
 	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME; \
 	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME/data; \
@@ -586,14 +637,14 @@ package-windows-x64: $(BIN_DIR)/$(PROJECT_NAME)-windows-x64.exe
 	echo "Package created: $$ZIP_FILE"
 
 # Package for macOS
-package-macos-arm64: $(BIN_DIR)/$(PROJECT_NAME)-macos-arm64
-	@echo "Packaging $(PROJECT_NAME) for macOS ARM64..."
-	@PACKAGE_DIR="$(BIN_DIR)/package-macos-arm64"; \
-	PACKAGE_NAME="$(PROJECT_NAME)-macos-arm64"; \
-	if [ ! -f "$(BIN_DIR)/$(PROJECT_NAME)-macos-arm64" ]; then \
-		echo "Error: Binary not found. Build it first with: make TARGET=macos-arm64 release"; \
-		exit 1; \
+package-macos-arm64:
+	@if [ ! -f "$(BIN_DIR)/$(PROJECT_NAME)-macos-arm64" ]; then \
+		echo "Skipping macOS ARM64 package: binary not found. Build it first with: make TARGET=macos-arm64 release-target"; \
+		exit 0; \
 	fi; \
+	echo "Packaging $(PROJECT_NAME) for macOS ARM64..."; \
+	PACKAGE_DIR="$(BIN_DIR)/package-macos-arm64"; \
+	PACKAGE_NAME="$(PROJECT_NAME)-macos-arm64"; \
 	rm -rf $$PACKAGE_DIR; \
 	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME; \
 	mkdir -p $$PACKAGE_DIR/$$PACKAGE_NAME/data; \
@@ -691,8 +742,9 @@ package-macos-arm64: $(BIN_DIR)/$(PROJECT_NAME)-macos-arm64
 #	echo "Package created: $$ZIP_FILE"
 
 # Package all targets (parallelizable with -j)
-package-all-targets: package-windows-x64 package-macos-arm64
-	@echo "All targets packaged!"
+# Only packages binaries that exist (skips missing ones)
+package-all-targets: package-macos-arm64 package-windows-x64
+	@echo "All available targets packaged!"
 
-.PHONY: all release debug rebuild clean distclean clean-all-targets all-targets all-targets-debug build-macos-arm64-release build-windows-x64-release build-macos-arm64-debug build-windows-x64-debug help help-targets fix-dylib-paths package-windows-x64 package-macos-arm64 package-all-targets
+.PHONY: all release release-target debug debug-target rebuild clean distclean clean-all-targets all-targets all-targets-debug build-macos-arm64-release build-windows-x64-release build-macos-arm64-debug build-windows-x64-debug help help-targets fix-dylib-paths package-windows-x64 package-macos-arm64 package-all-targets
 #package-macos-x86
