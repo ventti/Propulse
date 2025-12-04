@@ -1589,27 +1589,36 @@ begin
 	// Some keys are handled differently when playing song
 	//
 	if FollowPlayback {Module.PlayMode = PLAY_SONG} then
-	case Sc of
-
-		keyNoteUseLast: // space
-			Sc := keyChannelToggle;
-
-		keyMoveBackwards,
-		keyMoveLeft,
-		keyMoveUp:
+	begin
+		// 's' key: solo/unsolo current channel during playback
+		if Key = SDLK_s then
 		begin
-			SelectChannel(Cursor.Channel - 1);
+			Editor.ToggleChannelSolo(Cursor.Channel);
 			Exit(True);
 		end;
 
-		keyMoveForwards,
-		keyMoveRight,
-		keyMoveDown:
-		begin
-			SelectChannel(Cursor.Channel + 1);
-			Exit(True);
-		end;
+		case Sc of
 
+			keyNoteUseLast: // space
+				Sc := keyChannelToggle;
+
+			keyMoveBackwards,
+			keyMoveLeft,
+			keyMoveUp:
+			begin
+				SelectChannel(Cursor.Channel - 1);
+				Exit(True);
+			end;
+
+			keyMoveForwards,
+			keyMoveRight,
+			keyMoveDown:
+			begin
+				SelectChannel(Cursor.Channel + 1);
+				Exit(True);
+			end;
+
+		end;
 	end;
 
 	// Setup block marking
