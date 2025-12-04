@@ -1689,13 +1689,67 @@ begin
 	Locked := True;
 
 	// Init application directories
-	//
-	{$IFDEF LAZARUS}
-	AppPath := IncludeTrailingPathDelimiter(ProgramDirectory);
-	{$ELSE}
-	AppPath := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0)));
-	{$ENDIF}
-	DataPath := AppPath + 'data/';
+	// Do this first before any other initialization that might access files
+	try
+		{$IFDEF LAZARUS}
+		AppPath := IncludeTrailingPathDelimiter(ProgramDirectory);
+		{$ELSE}
+		// Expand to absolute path to handle relative paths like ./Propulse-macos-arm64
+		// This ensures we get the correct path regardless of current working directory
+		AppPath := ExtractFilePath(ExpandFileName(ParamStr(0)));
+		if AppPath = '' then
+		begin
+			WriteLn(StdErr, '');
+			WriteLn(StdErr, 'ERROR: Could not determine executable path.');
+			WriteLn(StdErr, '');
+			Halt(1);
+		end;
+		AppPath := IncludeTrailingPathDelimiter(AppPath);
+		{$ENDIF}
+		
+		// Require data and docs directories (or symlinks) under AppPath
+		DataPath := AppPath + 'data/';
+		if not DirectoryExists(DataPath) then
+	begin
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'ERROR: Required directory not found: ', DataPath);
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'The "data" directory (or symbolic link) must exist in the same');
+		WriteLn(StdErr, 'directory as the executable.');
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'Executable location: ', AppPath);
+		WriteLn(StdErr, 'Expected data path:   ', DataPath);
+		WriteLn(StdErr, '');
+		Halt(1);
+	end;
+	
+	if not DirectoryExists(AppPath + 'docs/') then
+	begin
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'ERROR: Required directory not found: ', AppPath + 'docs/');
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'The "docs" directory (or symbolic link) must exist in the same');
+		WriteLn(StdErr, 'directory as the executable.');
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'Executable location: ', AppPath);
+		WriteLn(StdErr, 'Expected docs path:  ', AppPath + 'docs/');
+		WriteLn(StdErr, '');
+		Halt(1);
+	end;
+	
+	DataPath := IncludeTrailingPathDelimiter(DataPath);
+	except
+		on E: Exception do
+		begin
+			WriteLn(StdErr, '');
+			WriteLn(StdErr, 'ERROR: Failed to initialize application directories.');
+			WriteLn(StdErr, 'Exception: ', E.ClassName);
+			WriteLn(StdErr, 'Message: ', E.Message);
+			WriteLn(StdErr, '');
+			Halt(1);
+		end;
+	end;
+	
 	ConfigPath := GetAppConfigDir(False);
 	if ConfigPath = '' then ConfigPath := DataPath;
 	ConfigPath := IncludeTrailingPathDelimiter(ConfigPath);

@@ -81,10 +81,52 @@ begin
 	Halt(1);
 end;
 
+var
+	ExePath, ExeDir, DataDir, DocsDir: String;
 begin
 	// Install custom exception handler before anything else
 	// This will catch all unhandled exceptions
 	ExceptProc := @CustomExceptionHandler;
+	
+	// Check for required directories BEFORE any initialization that might access files
+	// This prevents crashes when running from different directories
+	{$IFDEF LAZARUS}
+	ExeDir := IncludeTrailingPathDelimiter(ProgramDirectory);
+	{$ELSE}
+	ExePath := ExpandFileName(ParamStr(0));
+	ExeDir := IncludeTrailingPathDelimiter(ExtractFilePath(ExePath));
+	{$ENDIF}
+	
+	DataDir := ExeDir + 'data';
+	DocsDir := ExeDir + 'docs';
+	
+	if not DirectoryExists(DataDir) then
+	begin
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'ERROR: Required directory not found: ', DataDir);
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'The "data" directory (or symbolic link) must exist in the same');
+		WriteLn(StdErr, 'directory as the executable.');
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'Executable location: ', ExeDir);
+		WriteLn(StdErr, 'Expected data path:   ', DataDir);
+		WriteLn(StdErr, '');
+		Halt(1);
+	end;
+	
+	if not DirectoryExists(DocsDir) then
+	begin
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'ERROR: Required directory not found: ', DocsDir);
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'The "docs" directory (or symbolic link) must exist in the same');
+		WriteLn(StdErr, 'directory as the executable.');
+		WriteLn(StdErr, '');
+		WriteLn(StdErr, 'Executable location: ', ExeDir);
+		WriteLn(StdErr, 'Expected docs path:  ', DocsDir);
+		WriteLn(StdErr, '');
+		Halt(1);
+	end;
 	
 	{$IFNDEF WINDOWS}
 	with TDummyThread.Create(False) do
