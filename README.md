@@ -30,21 +30,33 @@ Supported formats:
 
 ## Building
 
-Currently the build setup is designed for macOS only.
-
 ### macOS (ARM64)
 
-Quick setup:
+Quick setup: Install Free Pascal Compiler and optionally for crossbuild, necessary tools and RTL files using [fpcupdeluxe](https://github.com/LongDirtyAnimAlf/fpcupdeluxe) as follows:
+
 ```bash
-# install FPC using fpcupdeluxe and optional crossbuild tools and rtl files
 ./install-fpc-mac.sh
 ./bootstrap-mac.sh
-make TARGET=macos-arm64 release
+make
 ```
 
-### Cross-compilation for Windows
+If you are all-in with Pascal development, Lazarus might be The IDE for you. 
 
-To build Windows binaries from macOS, you need Windows RTL units. See [docs/building.txt](docs/building.txt) for installation instructions.
+Visual Studio Code or Cursor
+
+### Cross-compilation
+
+Propulse is available for Mac arm64, Windows and Linux 64bit, both arm64 and x86-64. x86 support is deliberately dropped. Why? It's 2025. That's why.
+
+Examples:
+
+
+### Libraries
+
+Necessary libraries are included in [libs](libs) folder.
+
+
+See [docs/building.txt](docs/building.txt) for installation instructions.
 
 Then build with:
 ```bash

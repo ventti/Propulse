@@ -120,3 +120,6 @@ src/include/lazsdl2/bin/i386-win32/
 src/include/lazsdl2/bin/i386-linux/
 
 src/include/lazsdl2/bin/x86_64-linux/
+
+bin/docs
+bin/data
