@@ -16,17 +16,16 @@ include(cmake/platforms/linux.cmake)
 include(cmake/platforms/windows.cmake)
 
 # Find FPC compiler
+# Always try PATH first, then fall back to toolchain-specified paths
 # For cross-compilation, toolchain files set FPC_EXECUTABLE_NAME and FPC_SEARCH_PATHS
 # For native builds, use regular fpc compiler
 if(CMAKE_CROSSCOMPILING)
     if(DEFINED FPC_EXECUTABLE_NAME)
-        # Use cross-compiler specified in toolchain file
-        if(DEFINED FPC_SEARCH_PATHS)
+        # Try PATH first (most common case)
+        find_program(FPC_EXECUTABLE ${FPC_EXECUTABLE_NAME})
+        # If not found in PATH, try toolchain-specified paths
+        if(NOT FPC_EXECUTABLE AND DEFINED FPC_SEARCH_PATHS)
             find_program(FPC_EXECUTABLE ${FPC_EXECUTABLE_NAME} PATHS ${FPC_SEARCH_PATHS} NO_DEFAULT_PATH)
-        endif()
-        # If not found in specified paths, try system PATH
-        if(NOT FPC_EXECUTABLE)
-            find_program(FPC_EXECUTABLE ${FPC_EXECUTABLE_NAME})
         endif()
     else()
         # Toolchain file didn't set FPC_EXECUTABLE_NAME, fall back to regular fpc
@@ -35,7 +34,7 @@ if(CMAKE_CROSSCOMPILING)
         find_program(FPC_EXECUTABLE fpc)
     endif()
 else()
-    # Native build: use regular fpc compiler
+    # Native build: use regular fpc compiler (PATH is checked first by find_program)
     find_program(FPC_EXECUTABLE fpc)
 endif()
 
