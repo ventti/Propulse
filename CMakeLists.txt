@@ -73,39 +73,10 @@ elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     set(HOST_CPU_FPC "x86_64")
 endif()
 
-# Detect target platform from toolchain files or CMake built-in variables
-# Toolchain files set platform-specific variables; if not set, detect from CMAKE_SYSTEM_NAME/CMAKE_SYSTEM_PROCESSOR
+# Target platform must be set by toolchain file
+# Toolchain files set platform-specific variables (TARGET_PLATFORM, TARGET_CPU, etc.)
 if(NOT DEFINED TARGET_PLATFORM)
-    # Native build: detect platform from host system
-    if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-        if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
-            set(TARGET_PLATFORM "macos-arm64")
-            set(TARGET_CPU "aarch64")
-            set(TARGET_OS "darwin")
-            set(BINARY_EXT "")
-            set(UNIT_OUTPUT_SUBDIR "aarch64-darwin")
-            set(PLATFORM_DEFINES "-dCPUAARCH64;-dTARGET_ARM64;-dUSENATIVECODE;-dENABLE_SOXR;-dENABLE_SOXR_FORCED")
-            set(LIB_DIR_SUBDIR "macos-arm64")
-            set(LIB_PATHS_EXTRA "-k-L/opt/homebrew/lib")
-            set(POST_BUILD_SCRIPT "fix-dylib-paths")
-            set(DEBUG_FORMAT "-gw")  # DWARF for macOS
-        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64|X86_64|i386|I386")
-            set(TARGET_PLATFORM "macos-x86")
-            set(TARGET_CPU "x86_64")
-            set(TARGET_OS "darwin")
-            set(BINARY_EXT "")
-            set(UNIT_OUTPUT_SUBDIR "x86_64-darwin")
-            set(PLATFORM_DEFINES "-dCPUX86_64;-dTARGET_X64;-dUSENATIVECODE;-dENABLE_SOXR;-dENABLE_SOXR_FORCED")
-            set(LIB_DIR_SUBDIR "macos-x86")
-            set(LIB_PATHS_EXTRA "-k-L/usr/local/lib")
-            set(POST_BUILD_SCRIPT "fix-dylib-paths")
-            set(DEBUG_FORMAT "-gw")  # DWARF for macOS
-        else()
-            message(FATAL_ERROR "Unsupported macOS architecture: ${CMAKE_SYSTEM_PROCESSOR}. Only arm64 and x86_64 are supported.")
-        endif()
-    else()
-        message(FATAL_ERROR "Unsupported target system: ${CMAKE_SYSTEM_NAME}. Use a toolchain file for cross-compilation or build natively on macOS.")
-    endif()
+    message(FATAL_ERROR "TARGET_PLATFORM not set. A toolchain file must be used. Use a CMake preset (e.g., cmake --preset macos-arm64-release).")
 endif()
 
 # Construct full paths from subdirectories set by toolchain files
