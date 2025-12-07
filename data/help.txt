@@ -192,6 +192,7 @@
  
     Alt-F9           Toggle current channel
     Alt-F10          Solo/unsolo current channel
+    s                Solo/unsolo current channel (during playback)
 ;
 ;   Scroll Lock      Toggle playback tracing
 
