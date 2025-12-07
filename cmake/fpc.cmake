@@ -38,3 +38,15 @@ if(NOT FPC_EXECUTABLE)
     message(FATAL_ERROR "FreePascal Compiler (fpc) not found. Please install FPC 3.2+")
 endif()
 
+# Use CMake's built-in cross-compilation detection
+# CMAKE_CROSSCOMPILING is automatically set by CMake when CMAKE_SYSTEM_NAME != CMAKE_HOST_SYSTEM_NAME
+
+# Check if we're using a cross-compiler (ppcross*)
+get_filename_component(FPC_EXE_NAME ${FPC_EXECUTABLE} NAME)
+if(FPC_EXE_NAME MATCHES "^ppcross")
+    set(USE_CROSS_COMPILER TRUE)
+    message(STATUS "Using cross-compiler: ${FPC_EXECUTABLE}")
+else()
+    set(USE_CROSS_COMPILER FALSE)
+endif()
+
