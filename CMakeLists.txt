@@ -16,13 +16,8 @@ set(RESOURCE_FILE "${SRC_DIR}/propulse.res")
 # Find all Pascal source files for dependency tracking
 file(GLOB_RECURSE ALL_PAS_FILES "${SRC_DIR}/*.pas")
 
-# Include FPC configuration
+# Include FPC configuration (includes platform detection)
 include(cmake/fpc.cmake)
-
-# Include platform detection
-include(cmake/platforms/macos.cmake)
-include(cmake/platforms/linux.cmake)
-include(cmake/platforms/windows.cmake)
 
 # Unit search paths (relative to src directory)
 set(UNIT_PATHS
@@ -288,7 +283,7 @@ if(TARGET_OS STREQUAL "win64")
     # Install binary from build directory
     install(FILES "${CMAKE_BINARY_DIR}/${PACKAGE_BINARY_NAME}"
         DESTINATION "."
-        RENAME "Propulse.exe"
+        RENAME "${PROJECT_NAME}.exe"
         COMPONENT Runtime
     )
     

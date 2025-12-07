@@ -10,6 +10,11 @@ set(FPC_SEARCH_BASE_PATHS
 # Add Linux-specific paths
 set(FPC_SEARCH_BASE_PATHS_LINUX ${FPC_SEARCH_BASE_PATHS} /usr/lib/fpc)
 
+# Include platform detection
+include(cmake/platforms/macos.cmake)
+include(cmake/platforms/linux.cmake)
+include(cmake/platforms/windows.cmake)
+
 # Find FPC compiler
 # For cross-compilation, toolchain files set FPC_EXECUTABLE_NAME and FPC_SEARCH_PATHS
 # For native builds, use regular fpc compiler
