@@ -231,31 +231,10 @@ add_custom_target(${PROJECT_NAME} ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${REL_LIB_DIR_PLATFORM}" "."
 )
 
-# Post-build: Fix dylib paths for macOS
-# Use relative path for script to avoid shell parsing issues with parentheses
-if(TARGET_OS STREQUAL "darwin" AND POST_BUILD_SCRIPT STREQUAL "fix-dylib-paths")
-    # Create a script file to avoid shell parsing issues - use relative path in script
-    file(WRITE ${CMAKE_BINARY_DIR}/fix-dylib-paths.sh "#!/bin/bash\nBINARY=\"${REL_OUTPUT_BINARY}\"\nfor DYLIB in libSDL2 libbass libsoxr; do\n  current=\$(otool -L \"\$BINARY\" 2>/dev/null | grep -i \"\$DYLIB\" | head -1 | awk '{print \$1}' | tr -d ' ')\n  expected=\"@executable_path/\$DYLIB.dylib\"\n  if [ -n \"\$current\" ] && [ \"\$current\" != \"\$expected\" ]; then\n    echo \"  Changing \$DYLIB path: \$current -> \$expected\"\n    install_name_tool -change \"\$current\" \"\$expected\" \"\$BINARY\"\n  fi\ndone\n")
-    file(CHMOD ${CMAKE_BINARY_DIR}/fix-dylib-paths.sh FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        COMMAND ${CMAKE_COMMAND} -E echo "Fixing dylib paths..."
-        COMMAND bash ./fix-dylib-paths.sh || ${CMAKE_COMMAND} -E echo "Note: dylib path fixing skipped - may need manual fix"
-        COMMENT "Fixing dylib paths for macOS"
-    )
-endif()
-
-# Debug: Generate dSYM for macOS
-if(MODE STREQUAL "debug" AND TARGET_OS STREQUAL "darwin")
-    # Create a script to avoid shell parsing issues with pipes
-    file(WRITE ${CMAKE_BINARY_DIR}/generate-dsym.sh "#!/bin/bash\ndsymutil ${REL_OUTPUT_BINARY} 2>&1 | grep -v 'warning:.*no debug symbols' || true\n")
-    file(CHMOD ${CMAKE_BINARY_DIR}/generate-dsym.sh FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        COMMAND ${CMAKE_COMMAND} -E echo "Generating dSYM for macOS symbolication..."
-        COMMAND bash ./generate-dsym.sh
-        COMMENT "Generating dSYM"
-    )
+# macOS-specific post-build steps
+if(TARGET_OS STREQUAL "darwin")
+    macos_fix_dylib_paths(${PROJECT_NAME} ${CMAKE_BINARY_DIR} ${REL_OUTPUT_BINARY} ${POST_BUILD_SCRIPT})
+    macos_generate_dsym(${PROJECT_NAME} ${CMAKE_BINARY_DIR} ${REL_OUTPUT_BINARY} ${MODE})
 endif()
 
 # Determine binary name based on target and mode
