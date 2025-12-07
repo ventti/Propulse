@@ -8,11 +8,13 @@
   "configurePresets": [
     {
       "name": "base",
-      "generator": "Unix Makefiles"
+      "generator": "Ninja",
+      "hidden": true
     },
     {
       "name": "base-release",
       "inherits": "base",
+      "hidden": true,
       "cacheVariables": {
         "MODE": "release"
       }
@@ -20,49 +22,112 @@
     {
       "name": "base-debug",
       "inherits": "base",
+      "hidden": true,
       "cacheVariables": {
         "MODE": "debug"
       }
     },
     {
+      "name": "platform-windows-x64",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/windows-x64.cmake",
+      "hidden": true
+    },
+    {
+      "name": "platform-linux-x64",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/linux-x64.cmake",
+      "hidden": true
+    },
+    {
+      "name": "platform-linux-arm64",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/linux-arm64.cmake",
+      "hidden": true
+    },
+    {
+      "name": "platform-macos-arm64",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/macos-arm64.cmake",
+      "hidden": true
+    },
+    {
+      "name": "platform-macos-x86",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/macos-x86.cmake",
+      "hidden": true
+    },
+    {
       "name": "macos-arm64-release",
+      "hidden": true,
       "displayName": "macOS ARM64 (Release)",
       "description": "Build for macOS ARM64 in release mode",
-      "inherits": "base-release",
-      "binaryDir": "${sourceDir}/build/macos-arm64-release",
-      "cacheVariables": {
-        "BUILD_TARGET": "macos-arm64"
-      }
+      "inherits": ["base-release", "platform-macos-arm64"],
+      "binaryDir": "${sourceDir}/build/macos-arm64-release"
     },
     {
       "name": "macos-arm64-debug",
       "displayName": "macOS ARM64 (Debug)",
       "description": "Build for macOS ARM64 in debug mode",
-      "inherits": "base-debug",
-      "binaryDir": "${sourceDir}/build/macos-arm64-debug",
-      "cacheVariables": {
-        "BUILD_TARGET": "macos-arm64"
-      }
+      "inherits": ["base-debug", "platform-macos-arm64"],
+      "binaryDir": "${sourceDir}/build/macos-arm64-debug"
+    },
+    {
+      "name": "macos-x86-release",
+      "displayName": "macOS x86_64 (Release)",
+      "description": "Build for macOS x86_64 (Intel Mac) in release mode",
+      "inherits": ["base-release", "platform-macos-x86"],
+      "binaryDir": "${sourceDir}/build/macos-x86-release",
+      "hidden": true
+    },
+    {
+      "name": "macos-x86-debug",
+      "displayName": "macOS x86_64 (Debug)",
+      "description": "Build for macOS x86_64 (Intel Mac) in debug mode",
+      "inherits": ["base-debug", "platform-macos-x86"],
+      "binaryDir": "${sourceDir}/build/macos-x86-debug",
+      "hidden": true
     },
     {
       "name": "windows-x64-release",
       "displayName": "Windows x64 (Release)",
       "description": "Build for Windows x64 in release mode",
-      "inherits": "base-release",
-      "binaryDir": "${sourceDir}/build/windows-x64-release",
-      "cacheVariables": {
-        "BUILD_TARGET": "windows-x64"
-      }
+      "inherits": ["base-release", "platform-windows-x64"],
+      "binaryDir": "${sourceDir}/build/windows-x64-release"
     },
     {
       "name": "windows-x64-debug",
       "displayName": "Windows x64 (Debug)",
       "description": "Build for Windows x64 in debug mode",
-      "inherits": "base-debug",
-      "binaryDir": "${sourceDir}/build/windows-x64-debug",
-      "cacheVariables": {
-        "BUILD_TARGET": "windows-x64"
-      }
+      "inherits": ["base-debug", "platform-windows-x64"],
+      "binaryDir": "${sourceDir}/build/windows-x64-debug"
+    },
+    {
+      "name": "linux-x64-release",
+      "displayName": "Linux x64 (Release)",
+      "description": "Build for Linux x64 in release mode",
+      "inherits": ["base-release", "platform-linux-x64"],
+      "binaryDir": "${sourceDir}/build/linux-x64-release",
+      "hidden": true
+    },
+    {
+      "name": "linux-x64-debug",
+      "displayName": "Linux x64 (Debug)",
+      "description": "Build for Linux x64 in debug mode",
+      "inherits": ["base-debug", "platform-linux-x64"],
+      "binaryDir": "${sourceDir}/build/linux-x64-debug",
+      "hidden": true
+    },
+    {
+      "name": "linux-arm64-release",
+      "displayName": "Linux ARM64 (Release)",
+      "description": "Build for Linux ARM64 in release mode",
+      "inherits": ["base-release", "platform-linux-arm64"],
+      "binaryDir": "${sourceDir}/build/linux-arm64-release",
+      "hidden": true
+    },
+    {
+      "name": "linux-arm64-debug",
+      "displayName": "Linux ARM64 (Debug)",
+      "description": "Build for Linux ARM64 in debug mode",
+      "inherits": ["base-debug", "platform-linux-arm64"],
+      "binaryDir": "${sourceDir}/build/linux-arm64-debug",
+      "hidden": true
     }
   ],
   "buildPresets": [
@@ -79,6 +144,20 @@
       "targets": ["Propulse"]
     },
     {
+      "name": "macos-x86-release",
+      "displayName": "macOS x86_64 (Release)",
+      "configurePreset": "macos-x86-release",
+      "targets": ["Propulse"],
+      "hidden": true
+    },
+    {
+      "name": "macos-x86-debug",
+      "displayName": "macOS x86_64 (Debug)",
+      "configurePreset": "macos-x86-debug",
+      "targets": ["Propulse"],
+      "hidden": true
+    },
+    {
       "name": "windows-x64-release",
       "displayName": "Windows x64 (Release)",
       "configurePreset": "windows-x64-release",
@@ -89,6 +168,34 @@
       "displayName": "Windows x64 (Debug)",
       "configurePreset": "windows-x64-debug",
       "targets": ["Propulse"]
+    },
+    {
+      "name": "linux-x64-release",
+      "displayName": "Linux x64 (Release)",
+      "configurePreset": "linux-x64-release",
+      "targets": ["Propulse"],
+      "hidden": true
+    },
+    {
+      "name": "linux-x64-debug",
+      "displayName": "Linux x64 (Debug)",
+      "configurePreset": "linux-x64-debug",
+      "targets": ["Propulse"],
+      "hidden": true
+    },
+    {
+      "name": "linux-arm64-release",
+      "displayName": "Linux ARM64 (Release)",
+      "configurePreset": "linux-arm64-release",
+      "targets": ["Propulse"],
+      "hidden": true
+    },
+    {
+      "name": "linux-arm64-debug",
+      "displayName": "Linux ARM64 (Debug)",
+      "configurePreset": "linux-arm64-debug",
+      "targets": ["Propulse"],
+      "hidden": true
     }
   ],
   "packagePresets": [
@@ -99,10 +206,31 @@
       "generators": ["ZIP"]
     },
     {
+      "name": "macos-x86-release",
+      "displayName": "Package macOS x86_64 (Release)",
+      "configurePreset": "macos-x86-release",
+      "generators": ["ZIP"],
+      "hidden": true
+    },
+    {
       "name": "windows-x64-release",
       "displayName": "Package Windows x64 (Release)",
       "configurePreset": "windows-x64-release",
       "generators": ["ZIP"]
+    },
+    {
+      "name": "linux-x64-release",
+      "displayName": "Package Linux x64 (Release)",
+      "configurePreset": "linux-x64-release",
+      "generators": ["ZIP"],
+      "hidden": true
+    },
+    {
+      "name": "linux-arm64-release",
+      "displayName": "Package Linux ARM64 (Release)",
+      "configurePreset": "linux-arm64-release",
+      "generators": ["ZIP"],
+      "hidden": true
     }
   ],
   "workflowPresets": [

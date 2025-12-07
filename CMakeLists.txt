@@ -15,6 +15,24 @@ set(RESOURCE_FILE "${SRC_DIR}/propulse.res")
 # Find all Pascal source files for dependency tracking
 file(GLOB_RECURSE ALL_PAS_FILES "${SRC_DIR}/*.pas")
 
+# Common FPC search paths for find_path calls
+# Expand environment variables for user-specific paths
+if(DEFINED ENV{HOME})
+    set(FPC_SEARCH_BASE_PATHS
+        /usr/local/lib/fpc
+        /opt/homebrew/lib/fpc
+        "$ENV{HOME}/Applications/fpcupdeluxe/fpc"
+        "$ENV{HOME}/fpcupdeluxe/fpc"
+    )
+else()
+    set(FPC_SEARCH_BASE_PATHS
+        /usr/local/lib/fpc
+        /opt/homebrew/lib/fpc
+    )
+endif()
+# Add Linux-specific paths
+set(FPC_SEARCH_BASE_PATHS_LINUX ${FPC_SEARCH_BASE_PATHS} /usr/lib/fpc)
+
 # Unit search paths (relative to src directory)
 set(UNIT_PATHS
     -Fu${SRC_DIR}/protracker
@@ -28,9 +46,9 @@ set(UNIT_PATHS
     -Fu${SRC_DIR}/include/generics.collections/src
 )
 
-# Detect host platform
-if(APPLE)
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+# Detect host platform from CMake built-in variables
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+    if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
         set(HOST_PLATFORM "macos-arm64")
         set(HOST_OS_FPC "darwin")
         set(HOST_CPU_FPC "aarch64")
@@ -39,8 +57,8 @@ if(APPLE)
         set(HOST_OS_FPC "darwin")
         set(HOST_CPU_FPC "i386")
     endif()
-elseif(UNIX)
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+    if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
         set(HOST_PLATFORM "linux-arm64")
         set(HOST_OS_FPC "linux")
         set(HOST_CPU_FPC "aarch64")
@@ -49,38 +67,64 @@ elseif(UNIX)
         set(HOST_OS_FPC "linux")
         set(HOST_CPU_FPC "x86_64")
     endif()
-elseif(WIN32)
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     set(HOST_PLATFORM "windows-x64")
     set(HOST_OS_FPC "win64")
     set(HOST_CPU_FPC "x86_64")
 endif()
 
-# Build target selection (default to host platform)
-if(NOT DEFINED BUILD_TARGET)
-    set(BUILD_TARGET "${HOST_PLATFORM}")
+# Detect target platform from toolchain files or CMake built-in variables
+# Toolchain files set platform-specific variables; if not set, detect from CMAKE_SYSTEM_NAME/CMAKE_SYSTEM_PROCESSOR
+if(NOT DEFINED TARGET_PLATFORM)
+    # Native build: detect platform from host system
+    if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
+            set(TARGET_PLATFORM "macos-arm64")
+            set(TARGET_CPU "aarch64")
+            set(TARGET_OS "darwin")
+            set(BINARY_EXT "")
+            set(UNIT_OUTPUT_SUBDIR "aarch64-darwin")
+            set(PLATFORM_DEFINES "-dCPUAARCH64;-dTARGET_ARM64;-dUSENATIVECODE;-dENABLE_SOXR;-dENABLE_SOXR_FORCED")
+            set(LIB_DIR_SUBDIR "macos-arm64")
+            set(LIB_PATHS_EXTRA "-k-L/opt/homebrew/lib")
+            set(POST_BUILD_SCRIPT "fix-dylib-paths")
+            set(DEBUG_FORMAT "-gw")  # DWARF for macOS
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64|X86_64|i386|I386")
+            set(TARGET_PLATFORM "macos-x86")
+            set(TARGET_CPU "x86_64")
+            set(TARGET_OS "darwin")
+            set(BINARY_EXT "")
+            set(UNIT_OUTPUT_SUBDIR "x86_64-darwin")
+            set(PLATFORM_DEFINES "-dCPUX86_64;-dTARGET_X64;-dUSENATIVECODE;-dENABLE_SOXR;-dENABLE_SOXR_FORCED")
+            set(LIB_DIR_SUBDIR "macos-x86")
+            set(LIB_PATHS_EXTRA "-k-L/usr/local/lib")
+            set(POST_BUILD_SCRIPT "fix-dylib-paths")
+            set(DEBUG_FORMAT "-gw")  # DWARF for macOS
+        else()
+            message(FATAL_ERROR "Unsupported macOS architecture: ${CMAKE_SYSTEM_PROCESSOR}. Only arm64 and x86_64 are supported.")
+        endif()
+    else()
+        message(FATAL_ERROR "Unsupported target system: ${CMAKE_SYSTEM_NAME}. Use a toolchain file for cross-compilation or build natively on macOS.")
+    endif()
 endif()
 
-# Parse target into OS and CPU
-if(BUILD_TARGET STREQUAL "macos-arm64")
-    set(TARGET_CPU "aarch64")
-    set(TARGET_OS "darwin")
-    set(BINARY_EXT "")
-    set(UNIT_OUTPUT_DIR "${SRC_DIR}/lib/aarch64-darwin")
-    set(PLATFORM_DEFINES "-dCPUAARCH64;-dTARGET_ARM64;-dUSENATIVECODE;-dENABLE_SOXR;-dENABLE_SOXR_FORCED")
-    set(LIB_DIR_PLATFORM "${LIB_DIR}/macos-arm64")
-    set(LIB_PATHS "-k-L${LIB_DIR_PLATFORM}" "-k-L/opt/homebrew/lib")
-    set(POST_BUILD_SCRIPT "fix-dylib-paths")
-elseif(BUILD_TARGET STREQUAL "windows-x64")
-    set(TARGET_CPU "x86_64")
-    set(TARGET_OS "win64")
-    set(BINARY_EXT ".exe")
-    set(UNIT_OUTPUT_DIR "${SRC_DIR}/lib/x86_64-win64")
-    set(PLATFORM_DEFINES "-dCPUX86_64;-dTARGET_X64;-dWINDOWS")
-    set(LIB_DIR_PLATFORM "${LIB_DIR}/windows-x64")
-    set(LIB_PATHS "-k-L${LIB_DIR_PLATFORM}")
-    set(POST_BUILD_SCRIPT "")
+# Construct full paths from subdirectories set by toolchain files
+if(DEFINED UNIT_OUTPUT_SUBDIR)
+    set(UNIT_OUTPUT_DIR "${SRC_DIR}/lib/${UNIT_OUTPUT_SUBDIR}")
 else()
-    message(FATAL_ERROR "Unknown target: ${BUILD_TARGET}. Available targets: macos-arm64, windows-x64")
+    message(FATAL_ERROR "UNIT_OUTPUT_SUBDIR not set by toolchain file")
+endif()
+
+if(DEFINED LIB_DIR_SUBDIR)
+    set(LIB_DIR_PLATFORM "${LIB_DIR}/${LIB_DIR_SUBDIR}")
+    # Construct LIB_PATHS: platform-specific directory first, then any additional paths from toolchain
+    set(LIB_PATHS "-k-L${LIB_DIR_PLATFORM}")
+    # Add any additional library paths from toolchain file (e.g., /opt/homebrew/lib for macOS ARM64)
+    if(DEFINED LIB_PATHS_EXTRA AND NOT LIB_PATHS_EXTRA STREQUAL "")
+        list(APPEND LIB_PATHS ${LIB_PATHS_EXTRA})
+    endif()
+else()
+    message(FATAL_ERROR "LIB_DIR_SUBDIR not set by toolchain file")
 endif()
 
 # Build mode (default to release)
@@ -89,15 +133,43 @@ if(NOT DEFINED MODE)
 endif()
 
 # Find FPC compiler
-find_program(FPC_EXECUTABLE fpc)
+# For cross-compilation, toolchain files set FPC_EXECUTABLE_NAME and FPC_SEARCH_PATHS
+# For native builds, use regular fpc compiler
+if(CMAKE_CROSSCOMPILING)
+    if(DEFINED FPC_EXECUTABLE_NAME)
+        # Use cross-compiler specified in toolchain file
+        if(DEFINED FPC_SEARCH_PATHS)
+            find_program(FPC_EXECUTABLE ${FPC_EXECUTABLE_NAME} PATHS ${FPC_SEARCH_PATHS} NO_DEFAULT_PATH)
+        endif()
+        # If not found in specified paths, try system PATH
+        if(NOT FPC_EXECUTABLE)
+            find_program(FPC_EXECUTABLE ${FPC_EXECUTABLE_NAME})
+        endif()
+    else()
+        # Toolchain file didn't set FPC_EXECUTABLE_NAME, fall back to regular fpc
+        # (This shouldn't happen if toolchain files are properly configured)
+        message(STATUS "Toolchain file didn't set FPC_EXECUTABLE_NAME, using regular fpc")
+        find_program(FPC_EXECUTABLE fpc)
+    endif()
+else()
+    # Native build: use regular fpc compiler
+    find_program(FPC_EXECUTABLE fpc)
+endif()
+
 if(NOT FPC_EXECUTABLE)
     message(FATAL_ERROR "FreePascal Compiler (fpc) not found. Please install FPC 3.2+")
 endif()
 
-# Check if cross-compiling
-set(IS_CROSS_COMPILE FALSE)
-if(NOT (TARGET_OS STREQUAL HOST_OS_FPC))
-    set(IS_CROSS_COMPILE TRUE)
+# Use CMake's built-in cross-compilation detection
+# CMAKE_CROSSCOMPILING is automatically set by CMake when CMAKE_SYSTEM_NAME != CMAKE_HOST_SYSTEM_NAME
+
+# Check if we're using a cross-compiler (ppcross*)
+get_filename_component(FPC_EXE_NAME ${FPC_EXECUTABLE} NAME)
+if(FPC_EXE_NAME MATCHES "^ppcross")
+    set(USE_CROSS_COMPILER TRUE)
+    message(STATUS "Using cross-compiler: ${FPC_EXECUTABLE}")
+else()
+    set(USE_CROSS_COMPILER FALSE)
 endif()
 
 # Compiler flags base
@@ -111,9 +183,21 @@ set(FPC_FLAGS_BASE
     -FE${CMAKE_BINARY_DIR}
     -FU${UNIT_OUTPUT_DIR}
     -Xd
-    -T${TARGET_OS}
-    -P${TARGET_CPU}
 )
+
+# Add target flags
+# Note: Even cross-compilers like ppcrossx64 need -T flag to specify target OS
+# The -P flag is implicit in cross-compiler name, but -T is still needed
+if(USE_CROSS_COMPILER)
+    # Cross-compiler still needs -T flag for target OS
+    list(APPEND FPC_FLAGS_BASE -T${TARGET_OS})
+elseif(NOT USE_CROSS_COMPILER)
+    # Regular fpc needs both -T and -P
+    list(APPEND FPC_FLAGS_BASE
+        -T${TARGET_OS}
+        -P${TARGET_CPU}
+    )
+endif()
 
 # Common flags shared between release and debug modes
 set(FPC_FLAGS_COMMON
@@ -136,10 +220,9 @@ set(FPC_FLAGS_RELEASE
 )
 
 # Debug mode flags
-if(TARGET_OS STREQUAL "darwin")
-    set(DEBUG_FORMAT "-gw")  # DWARF for macOS
-else()
-    set(DEBUG_FORMAT "-gs")  # Stabs for other platforms
+# DEBUG_FORMAT is set by toolchain files
+if(NOT DEFINED DEBUG_FORMAT)
+    message(FATAL_ERROR "DEBUG_FORMAT not set by toolchain file")
 endif()
 
 set(FPC_FLAGS_DEBUG
@@ -159,19 +242,17 @@ set(FPC_FLAGS_DEBUG
 # Output binaries to build directory
 if(MODE STREQUAL "debug")
     set(FPC_FLAGS ${FPC_FLAGS_DEBUG})
-    set(OUTPUT_BINARY "${CMAKE_BINARY_DIR}/${PROJECT_NAME}-${BUILD_TARGET}-debug${BINARY_EXT}")
+    set(OUTPUT_BINARY "${CMAKE_BINARY_DIR}/${PROJECT_NAME}-${TARGET_PLATFORM}-debug${BINARY_EXT}")
 else()
     set(FPC_FLAGS ${FPC_FLAGS_RELEASE})
-    set(OUTPUT_BINARY "${CMAKE_BINARY_DIR}/${PROJECT_NAME}-${BUILD_TARGET}${BINARY_EXT}")
+    set(OUTPUT_BINARY "${CMAKE_BINARY_DIR}/${PROJECT_NAME}-${TARGET_PLATFORM}${BINARY_EXT}")
 endif()
 
 # Add FCL JSON unit path for macOS builds
 if(TARGET_OS STREQUAL "darwin")
     find_path(FCL_JSON_PATH
         NAMES fcl-json
-        PATHS
-            /usr/local/lib/fpc
-            /opt/homebrew/lib/fpc
+        PATHS ${FPC_SEARCH_BASE_PATHS}
         PATH_SUFFIXES
             units/${TARGET_CPU}-${TARGET_OS}/fcl-json
     )
@@ -180,57 +261,58 @@ if(TARGET_OS STREQUAL "darwin")
     endif()
 endif()
 
-# Add Windows RTL unit paths for Windows cross-compilation
-if(TARGET_OS STREQUAL "win64")
-    # Search for Windows RTL units in common FPC installation locations
-    set(WIN64_RTL_SEARCH_PATHS
-        /usr/local/lib/fpc/*/units/x86_64-win64
-        $ENV{HOME}/Applications/fpcupdeluxe/fpc/units/x86_64-win64
-        $ENV{HOME}/fpcupdeluxe/fpc/units/x86_64-win64
-        $ENV{HOME}/fpcupdeluxe/fpc/lib/fpc/*/units/x86_64-win64
-    )
+# Add RTL unit paths for cross-compilation
+# RTL configuration is set by toolchain files
+if(DEFINED RTL_SUFFIX)
+    # Check if we should search for RTL (only for cross-compilation, or always for Windows/Linux)
+    set(SHOULD_SEARCH_RTL TRUE)
+    if(DEFINED RTL_CROSSCOMPILE_ONLY AND RTL_CROSSCOMPILE_ONLY AND NOT CMAKE_CROSSCOMPILING)
+        set(SHOULD_SEARCH_RTL FALSE)
+    endif()
     
-    # Try to find Windows RTL unit directory
-    find_path(WIN64_RTL_UNIT_PATH
-        NAMES rtl system.ppu
-        PATHS
-            /usr/local/lib/fpc
-            $ENV{HOME}/Applications/fpcupdeluxe/fpc
-            $ENV{HOME}/fpcupdeluxe/fpc
-        PATH_SUFFIXES
-            units/x86_64-win64
-            lib/fpc/*/units/x86_64-win64
-        NO_DEFAULT_PATH
-    )
-    
-    if(WIN64_RTL_UNIT_PATH)
-        # Add RTL unit paths
-        list(APPEND UNIT_PATHS
-            "-Fu${WIN64_RTL_UNIT_PATH}/rtl"
-            "-Fu${WIN64_RTL_UNIT_PATH}"
-            "-Fu${WIN64_RTL_UNIT_PATH}/rtl-generics"
-            "-Fu${WIN64_RTL_UNIT_PATH}/rtl-objpas"
-            "-Fu${WIN64_RTL_UNIT_PATH}/rtl-win"
+    if(SHOULD_SEARCH_RTL)
+        # Determine which search paths to use
+        if(RTL_USE_LINUX_PATHS)
+            set(RTL_SEARCH_PATHS ${FPC_SEARCH_BASE_PATHS_LINUX})
+        else()
+            set(RTL_SEARCH_PATHS ${FPC_SEARCH_BASE_PATHS})
+        endif()
+        
+        # Find RTL unit directory
+        find_path(RTL_UNIT_PATH
+            NAMES rtl system.ppu
+            PATHS ${RTL_SEARCH_PATHS}
+            PATH_SUFFIXES ${RTL_PATH_SUFFIXES}
+            NO_DEFAULT_PATH
         )
-        # Add FCL (Free Component Library) unit paths
-        list(APPEND UNIT_PATHS
-            "-Fu${WIN64_RTL_UNIT_PATH}/fcl-base"
-            "-Fu${WIN64_RTL_UNIT_PATH}/fcl-extra"
-            "-Fu${WIN64_RTL_UNIT_PATH}/fcl-process"
-            "-Fu${WIN64_RTL_UNIT_PATH}/fcl-net"
-            "-Fu${WIN64_RTL_UNIT_PATH}/fcl-json"
-        )
-        # Add Windows-specific unit paths
-        list(APPEND UNIT_PATHS
-            "-Fu${WIN64_RTL_UNIT_PATH}/winunits-base"
-            "-Fu${WIN64_RTL_UNIT_PATH}/winunits-extra"
-        )
-        message(STATUS "Found Windows RTL units at: ${WIN64_RTL_UNIT_PATH}")
-    else()
-        message(WARNING "Windows x64 RTL units not found. Cross-compilation may fail.")
-        message(WARNING "To cross-compile for Windows, install Windows RTL units using fpcupdeluxe:")
-        message(WARNING "  https://github.com/newpascal/fpcupdeluxe/releases")
-        message(WARNING "Or build RTL units from FPC source (see bootstrap-mac.sh for example)")
+        
+        if(RTL_UNIT_PATH)
+            # Add RTL unit paths
+            foreach(RTL_SUBDIR ${RTL_UNIT_SUBDIRS})
+                list(APPEND UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${RTL_SUBDIR}")
+            endforeach()
+            # Add base RTL path
+            list(APPEND UNIT_PATHS "-Fu${RTL_UNIT_PATH}")
+            
+            # Add FCL (Free Component Library) unit paths
+            foreach(FCL_SUBDIR ${FCL_UNIT_SUBDIRS})
+                list(APPEND UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${FCL_SUBDIR}")
+            endforeach()
+            
+            # Add platform-specific unit paths (if any)
+            if(DEFINED RTL_PLATFORM_UNIT_SUBDIRS AND NOT RTL_PLATFORM_UNIT_SUBDIRS STREQUAL "")
+                foreach(PLATFORM_SUBDIR ${RTL_PLATFORM_UNIT_SUBDIRS})
+                    list(APPEND UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${PLATFORM_SUBDIR}")
+                endforeach()
+            endif()
+            
+            message(STATUS "Found ${RTL_WARNING_PLATFORM} ${TARGET_CPU} RTL units at: ${RTL_UNIT_PATH}")
+        else()
+            message(WARNING "${RTL_WARNING_PLATFORM} ${TARGET_CPU} RTL units not found. Cross-compilation may fail.")
+            message(WARNING "To cross-compile for ${RTL_WARNING_PLATFORM}, install ${RTL_WARNING_PLATFORM} RTL units using fpcupdeluxe:")
+            message(WARNING "  https://github.com/newpascal/fpcupdeluxe/releases")
+            message(WARNING "Or build RTL units from FPC source")
+        endif()
     endif()
 endif()
 
@@ -259,22 +341,27 @@ set(REL_UNIT_PATHS
     "-Fu${REL_SRC_DIR}/include/generics.collections/src"
 )
 
-# Add Windows RTL paths to REL_UNIT_PATHS (keep as absolute paths since they're outside project)
-if(TARGET_OS STREQUAL "win64" AND WIN64_RTL_UNIT_PATH)
-    list(APPEND REL_UNIT_PATHS
-        "-Fu${WIN64_RTL_UNIT_PATH}/rtl"
-        "-Fu${WIN64_RTL_UNIT_PATH}"
-        "-Fu${WIN64_RTL_UNIT_PATH}/rtl-generics"
-        "-Fu${WIN64_RTL_UNIT_PATH}/rtl-objpas"
-        "-Fu${WIN64_RTL_UNIT_PATH}/rtl-win"
-        "-Fu${WIN64_RTL_UNIT_PATH}/fcl-base"
-        "-Fu${WIN64_RTL_UNIT_PATH}/fcl-extra"
-        "-Fu${WIN64_RTL_UNIT_PATH}/fcl-process"
-        "-Fu${WIN64_RTL_UNIT_PATH}/fcl-net"
-        "-Fu${WIN64_RTL_UNIT_PATH}/fcl-json"
-        "-Fu${WIN64_RTL_UNIT_PATH}/winunits-base"
-        "-Fu${WIN64_RTL_UNIT_PATH}/winunits-extra"
-    )
+# Add RTL paths to REL_UNIT_PATHS (keep as absolute paths since they're outside project)
+# Use unified RTL_UNIT_PATH set by the RTL finding code above
+if(DEFINED RTL_UNIT_PATH AND RTL_UNIT_PATH)
+    # Add RTL unit paths
+    foreach(RTL_SUBDIR ${RTL_UNIT_SUBDIRS})
+        list(APPEND REL_UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${RTL_SUBDIR}")
+    endforeach()
+    # Add base RTL path
+    list(APPEND REL_UNIT_PATHS "-Fu${RTL_UNIT_PATH}")
+    
+    # Add FCL (Free Component Library) unit paths
+    foreach(FCL_SUBDIR ${FCL_UNIT_SUBDIRS})
+        list(APPEND REL_UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${FCL_SUBDIR}")
+    endforeach()
+    
+    # Add platform-specific unit paths (if any)
+    if(DEFINED RTL_PLATFORM_UNIT_SUBDIRS AND NOT RTL_PLATFORM_UNIT_SUBDIRS STREQUAL "")
+        foreach(PLATFORM_SUBDIR ${RTL_PLATFORM_UNIT_SUBDIRS})
+            list(APPEND REL_UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${PLATFORM_SUBDIR}")
+        endforeach()
+    endif()
 endif()
 
 # Build relative FPC flags
@@ -288,9 +375,20 @@ set(REL_FPC_FLAGS_BASE
     "-FE."
     "-FU${REL_UNIT_OUTPUT_DIR}"
     -Xd
-    "-T${TARGET_OS}"
-    "-P${TARGET_CPU}"
 )
+
+# Add target flags
+# Note: Even cross-compilers like ppcrossx64 need -T flag to specify target OS
+if(USE_CROSS_COMPILER)
+    # Cross-compiler still needs -T flag for target OS
+    list(APPEND REL_FPC_FLAGS_BASE "-T${TARGET_OS}")
+elseif(NOT USE_CROSS_COMPILER)
+    # Regular fpc needs both -T and -P
+    list(APPEND REL_FPC_FLAGS_BASE
+        "-T${TARGET_OS}"
+        "-P${TARGET_CPU}"
+    )
+endif()
 
 # Common flags with relative paths
 set(REL_FPC_FLAGS_COMMON
@@ -304,11 +402,8 @@ set(REL_FPC_FLAGS_COMMON
 
 # Select relative flags based on mode
 if(MODE STREQUAL "debug")
-    if(TARGET_OS STREQUAL "darwin")
-        set(REL_DEBUG_FORMAT "-gw")
-    else()
-        set(REL_DEBUG_FORMAT "-gs")
-    endif()
+    # Use DEBUG_FORMAT from toolchain file (already set above)
+    set(REL_DEBUG_FORMAT ${DEBUG_FORMAT})
     set(REL_FPC_FLAGS
         ${REL_FPC_FLAGS_COMMON}
         -g
@@ -333,10 +428,13 @@ else()
 endif()
 
 # Build relative library paths
-if(BUILD_TARGET STREQUAL "macos-arm64")
-    set(REL_LIB_PATHS "-k-L${REL_LIB_DIR_PLATFORM}" "-k-L/opt/homebrew/lib")
-elseif(BUILD_TARGET STREQUAL "windows-x64")
-    set(REL_LIB_PATHS "-k-L${REL_LIB_DIR_PLATFORM}")
+# Start with the platform-specific library directory (relative)
+set(REL_LIB_PATHS "-k-L${REL_LIB_DIR_PLATFORM}")
+# Add any additional library paths from toolchain file (keep absolute paths as-is)
+if(DEFINED LIB_PATHS_EXTRA AND NOT LIB_PATHS_EXTRA STREQUAL "")
+    # LIB_PATHS_EXTRA may contain additional paths like -k-L/opt/homebrew/lib
+    # Append them to REL_LIB_PATHS (they're already absolute, so no conversion needed)
+    list(APPEND REL_LIB_PATHS ${LIB_PATHS_EXTRA})
 endif()
 
 # Custom command to build the binary using FPC
@@ -345,8 +443,8 @@ endif()
 add_custom_command(
     OUTPUT ${OUTPUT_BINARY}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    COMMAND ${CMAKE_COMMAND} -E echo "Building ${PROJECT_NAME} for ${BUILD_TARGET} mode ${MODE}"
-    COMMAND ${CMAKE_COMMAND} -E echo "  Target: ${TARGET_CPU}-${TARGET_OS}"
+    COMMAND ${CMAKE_COMMAND} -E echo "Building ${PROJECT_NAME} for ${TARGET_PLATFORM} mode ${MODE}"
+    COMMAND ${CMAKE_COMMAND} -E echo "  Target: ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR} (${TARGET_CPU}-${TARGET_OS})"
     COMMAND ${FPC_EXECUTABLE}
         ${REL_FPC_FLAGS}
         ${REL_UNIT_PATHS}
@@ -357,7 +455,7 @@ add_custom_command(
         -k-lsoxr
         ${REL_LIB_PATHS}
     DEPENDS ${MAIN_SOURCE} ${RESOURCE_FILE} ${ALL_PAS_FILES}
-    COMMENT "Compiling ${PROJECT_NAME} for ${BUILD_TARGET}"
+    COMMENT "Compiling ${PROJECT_NAME} for ${TARGET_PLATFORM}"
     VERBATIM
 )
 
@@ -399,13 +497,13 @@ endif()
 
 # Determine binary name based on target and mode
 if(MODE STREQUAL "debug")
-    set(PACKAGE_BINARY_NAME "${PROJECT_NAME}-${BUILD_TARGET}-debug${BINARY_EXT}")
+    set(PACKAGE_BINARY_NAME "${PROJECT_NAME}-${TARGET_PLATFORM}-debug${BINARY_EXT}")
 else()
-    set(PACKAGE_BINARY_NAME "${PROJECT_NAME}-${BUILD_TARGET}${BINARY_EXT}")
+    set(PACKAGE_BINARY_NAME "${PROJECT_NAME}-${TARGET_PLATFORM}${BINARY_EXT}")
 endif()
 
 # Install rules for binaries and libraries
-if(BUILD_TARGET STREQUAL "windows-x64")
+if(TARGET_OS STREQUAL "win64")
     # Install binary from build directory
     install(FILES "${CMAKE_BINARY_DIR}/${PACKAGE_BINARY_NAME}"
         DESTINATION "."
@@ -436,7 +534,7 @@ if(BUILD_TARGET STREQUAL "windows-x64")
         OPTIONAL
     )
     
-elseif(BUILD_TARGET STREQUAL "macos-arm64")
+elseif(TARGET_OS STREQUAL "darwin")
     # Install binary from build directory
     install(FILES "${CMAKE_BINARY_DIR}/${PACKAGE_BINARY_NAME}"
         DESTINATION "."
@@ -515,6 +613,37 @@ exit 0
             endif()
         endif()
     " COMPONENT Runtime)
+elseif(TARGET_OS STREQUAL "linux")
+    # Install binary from build directory
+    install(FILES "${CMAKE_BINARY_DIR}/${PACKAGE_BINARY_NAME}"
+        DESTINATION "."
+        RENAME "Propulse"
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+        COMPONENT Runtime
+    )
+    
+    # Install shared libraries from build directory
+    install(FILES
+        "${CMAKE_BINARY_DIR}/libbass.so"
+        "${CMAKE_BINARY_DIR}/libSDL2-2.0.so.0"
+        "${CMAKE_BINARY_DIR}/libsoxr.so.0"
+        DESTINATION "."
+        COMPONENT Runtime
+        OPTIONAL
+    )
+    
+    # Install data directory
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/data"
+        DESTINATION "."
+        COMPONENT Runtime
+    )
+    
+    # Install license
+    install(FILES "${CMAKE_SOURCE_DIR}/license.txt"
+        DESTINATION "."
+        COMPONENT Runtime
+        OPTIONAL
+    )
 endif()
 
 # CPack configuration for packaging
@@ -523,7 +652,7 @@ set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Propulse Tracker - A ProTracker clone")
 set(CPACK_GENERATOR "ZIP")
 set(CPACK_PACKAGE_DIRECTORY "${CMAKE_SOURCE_DIR}/release")
-set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${BUILD_TARGET}")
+set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${TARGET_PLATFORM}")
 
 # Configure CPack components
 set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "Propulse Tracker")
