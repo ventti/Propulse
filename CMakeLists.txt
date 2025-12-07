@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.24)
-project(Propulse VERSION 0.10.0 LANGUAGES NONE)
+set(PROJECT_NAME "Propulse")
+set(PROJECT_VERSION "0.0.0")
+project(${PROJECT_NAME} VERSION ${PROJECT_VERSION} LANGUAGES NONE)
 
 # Project configuration
-set(PROJECT_NAME "Propulse")
 # Use file(TO_CMAKE_PATH) to ensure paths are properly formatted
 file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}/src" SRC_DIR)
 # Build artifacts go to build directory (CMAKE_BINARY_DIR), not bin/
@@ -15,23 +16,13 @@ set(RESOURCE_FILE "${SRC_DIR}/propulse.res")
 # Find all Pascal source files for dependency tracking
 file(GLOB_RECURSE ALL_PAS_FILES "${SRC_DIR}/*.pas")
 
-# Common FPC search paths for find_path calls
-# Expand environment variables for user-specific paths
-if(DEFINED ENV{HOME})
-    set(FPC_SEARCH_BASE_PATHS
-        /usr/local/lib/fpc
-        /opt/homebrew/lib/fpc
-        "$ENV{HOME}/Applications/fpcupdeluxe/fpc"
-        "$ENV{HOME}/fpcupdeluxe/fpc"
-    )
-else()
-    set(FPC_SEARCH_BASE_PATHS
-        /usr/local/lib/fpc
-        /opt/homebrew/lib/fpc
-    )
-endif()
-# Add Linux-specific paths
-set(FPC_SEARCH_BASE_PATHS_LINUX ${FPC_SEARCH_BASE_PATHS} /usr/lib/fpc)
+# Include FPC configuration
+include(cmake/fpc.cmake)
+
+# Include platform detection
+include(cmake/platforms/macos.cmake)
+include(cmake/platforms/linux.cmake)
+include(cmake/platforms/windows.cmake)
 
 # Unit search paths (relative to src directory)
 set(UNIT_PATHS
@@ -45,33 +36,6 @@ set(UNIT_PATHS
     -Fu${SRC_DIR}/include/bass
     -Fu${SRC_DIR}/include/generics.collections/src
 )
-
-# Detect host platform from CMake built-in variables
-if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
-    if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
-        set(HOST_PLATFORM "macos-arm64")
-        set(HOST_OS_FPC "darwin")
-        set(HOST_CPU_FPC "aarch64")
-    else()
-        set(HOST_PLATFORM "macos-x86")
-        set(HOST_OS_FPC "darwin")
-        set(HOST_CPU_FPC "i386")
-    endif()
-elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
-    if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
-        set(HOST_PLATFORM "linux-arm64")
-        set(HOST_OS_FPC "linux")
-        set(HOST_CPU_FPC "aarch64")
-    else()
-        set(HOST_PLATFORM "linux-x64")
-        set(HOST_OS_FPC "linux")
-        set(HOST_CPU_FPC "x86_64")
-    endif()
-elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
-    set(HOST_PLATFORM "windows-x64")
-    set(HOST_OS_FPC "win64")
-    set(HOST_CPU_FPC "x86_64")
-endif()
 
 # Target platform must be set by toolchain file
 # Toolchain files set platform-specific variables (TARGET_PLATFORM, TARGET_CPU, etc.)
