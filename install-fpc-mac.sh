@@ -158,10 +158,4 @@ fi
 # Summary
 echo ""
 success "Setup completed!"
-info ""
-info "After installing FPC via fpcupdeluxe, you can build Propulse:"
-info "  make TARGET=macos-arm64 release"
-info "  make TARGET=windows-x64 release"
-info "  make TARGET=linux-x64 release"
-info "  make TARGET=linux-arm64 release"
 

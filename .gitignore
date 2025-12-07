@@ -123,3 +123,6 @@ src/include/lazsdl2/bin/x86_64-linux/
 
 bin/docs
 bin/data
+
+build/
+release/
