@@ -70,31 +70,18 @@ endif()
 # FPC compiler finding and cross-compiler detection is handled in cmake/fpc.cmake
 
 # Compiler flags base
+# Get generic FPC base flags (mode, syntax, target flags)
+fpc_build_base_flags(FPC_FLAGS_BASE_GENERIC ${TARGET_OS} ${TARGET_CPU})
+
+# Add project-specific paths and output directories
 set(FPC_FLAGS_BASE
-    -Mdelphi
-    -Sc
-    -Cg
+    ${FPC_FLAGS_BASE_GENERIC}
     -Fi${SRC_DIR}
     -Fl${SRC_DIR}/include/sdl2
     -Fl${SRC_DIR}/include/bass
     -FE${CMAKE_BINARY_DIR}
     -FU${UNIT_OUTPUT_DIR}
-    -Xd
 )
-
-# Add target flags
-# Note: Even cross-compilers like ppcrossx64 need -T flag to specify target OS
-# The -P flag is implicit in cross-compiler name, but -T is still needed
-if(USE_CROSS_COMPILER)
-    # Cross-compiler still needs -T flag for target OS
-    list(APPEND FPC_FLAGS_BASE -T${TARGET_OS})
-elseif(NOT USE_CROSS_COMPILER)
-    # Regular fpc needs both -T and -P
-    list(APPEND FPC_FLAGS_BASE
-        -T${TARGET_OS}
-        -P${TARGET_CPU}
-    )
-endif()
 
 # Common flags shared between release and debug modes
 set(FPC_FLAGS_COMMON
@@ -107,13 +94,10 @@ set(FPC_FLAGS_COMMON
 )
 
 # Release mode flags
+fpc_build_release_flags(FPC_FLAGS_RELEASE_GENERIC)
 set(FPC_FLAGS_RELEASE
     ${FPC_FLAGS_COMMON}
-    -O3
-    -XX
-    -Xs
-    -gv
-    -dRELEASE
+    ${FPC_FLAGS_RELEASE_GENERIC}
 )
 
 # Debug mode flags
@@ -122,17 +106,10 @@ if(NOT DEFINED DEBUG_FORMAT)
     message(FATAL_ERROR "DEBUG_FORMAT not set by toolchain file")
 endif()
 
+fpc_build_debug_flags(FPC_FLAGS_DEBUG_GENERIC ${DEBUG_FORMAT})
 set(FPC_FLAGS_DEBUG
     ${FPC_FLAGS_COMMON}
-    -g
-    -gh
-    -Cr
-    -Ct
-    -Ci
-    -Co
-    -Sa
-    ${DEBUG_FORMAT}
-    -dDEBUG
+    ${FPC_FLAGS_DEBUG_GENERIC}
 )
 
 # Select flags based on mode
@@ -160,58 +137,7 @@ endif()
 
 # Add RTL unit paths for cross-compilation
 # RTL configuration is set by toolchain files
-if(DEFINED RTL_SUFFIX)
-    # Check if we should search for RTL (only for cross-compilation, or always for Windows/Linux)
-    set(SHOULD_SEARCH_RTL TRUE)
-    if(DEFINED RTL_CROSSCOMPILE_ONLY AND RTL_CROSSCOMPILE_ONLY AND NOT CMAKE_CROSSCOMPILING)
-        set(SHOULD_SEARCH_RTL FALSE)
-    endif()
-    
-    if(SHOULD_SEARCH_RTL)
-        # Determine which search paths to use
-        if(RTL_USE_LINUX_PATHS)
-            set(RTL_SEARCH_PATHS ${FPC_SEARCH_BASE_PATHS_LINUX})
-        else()
-            set(RTL_SEARCH_PATHS ${FPC_SEARCH_BASE_PATHS})
-        endif()
-        
-        # Find RTL unit directory
-        find_path(RTL_UNIT_PATH
-            NAMES rtl system.ppu
-            PATHS ${RTL_SEARCH_PATHS}
-            PATH_SUFFIXES ${RTL_PATH_SUFFIXES}
-            NO_DEFAULT_PATH
-        )
-        
-        if(RTL_UNIT_PATH)
-            # Add RTL unit paths
-            foreach(RTL_SUBDIR ${RTL_UNIT_SUBDIRS})
-                list(APPEND UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${RTL_SUBDIR}")
-            endforeach()
-            # Add base RTL path
-            list(APPEND UNIT_PATHS "-Fu${RTL_UNIT_PATH}")
-            
-            # Add FCL (Free Component Library) unit paths
-            foreach(FCL_SUBDIR ${FCL_UNIT_SUBDIRS})
-                list(APPEND UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${FCL_SUBDIR}")
-            endforeach()
-            
-            # Add platform-specific unit paths (if any)
-            if(DEFINED RTL_PLATFORM_UNIT_SUBDIRS AND NOT RTL_PLATFORM_UNIT_SUBDIRS STREQUAL "")
-                foreach(PLATFORM_SUBDIR ${RTL_PLATFORM_UNIT_SUBDIRS})
-                    list(APPEND UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${PLATFORM_SUBDIR}")
-                endforeach()
-            endif()
-            
-            message(STATUS "Found ${RTL_WARNING_PLATFORM} ${TARGET_CPU} RTL units at: ${RTL_UNIT_PATH}")
-        else()
-            message(WARNING "${RTL_WARNING_PLATFORM} ${TARGET_CPU} RTL units not found. Cross-compilation may fail.")
-            message(WARNING "To cross-compile for ${RTL_WARNING_PLATFORM}, install ${RTL_WARNING_PLATFORM} RTL units using fpcupdeluxe:")
-            message(WARNING "  https://github.com/newpascal/fpcupdeluxe/releases")
-            message(WARNING "Or build RTL units from FPC source")
-        endif()
-    endif()
-endif()
+fpc_find_rtl_units(UNIT_PATHS ${TARGET_CPU} ${TARGET_OS})
 
 # Create output directories
 file(MAKE_DIRECTORY ${UNIT_OUTPUT_DIR})
@@ -240,52 +166,21 @@ set(REL_UNIT_PATHS
 
 # Add RTL paths to REL_UNIT_PATHS (keep as absolute paths since they're outside project)
 # Use unified RTL_UNIT_PATH set by the RTL finding code above
-if(DEFINED RTL_UNIT_PATH AND RTL_UNIT_PATH)
-    # Add RTL unit paths
-    foreach(RTL_SUBDIR ${RTL_UNIT_SUBDIRS})
-        list(APPEND REL_UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${RTL_SUBDIR}")
-    endforeach()
-    # Add base RTL path
-    list(APPEND REL_UNIT_PATHS "-Fu${RTL_UNIT_PATH}")
-    
-    # Add FCL (Free Component Library) unit paths
-    foreach(FCL_SUBDIR ${FCL_UNIT_SUBDIRS})
-        list(APPEND REL_UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${FCL_SUBDIR}")
-    endforeach()
-    
-    # Add platform-specific unit paths (if any)
-    if(DEFINED RTL_PLATFORM_UNIT_SUBDIRS AND NOT RTL_PLATFORM_UNIT_SUBDIRS STREQUAL "")
-        foreach(PLATFORM_SUBDIR ${RTL_PLATFORM_UNIT_SUBDIRS})
-            list(APPEND REL_UNIT_PATHS "-Fu${RTL_UNIT_PATH}/${PLATFORM_SUBDIR}")
-        endforeach()
-    endif()
-endif()
+fpc_add_rtl_paths(REL_UNIT_PATHS ${RTL_UNIT_PATH})
 
 # Build relative FPC flags
+# Get generic FPC base flags (reuse the same function)
+fpc_build_base_flags(REL_FPC_FLAGS_BASE_GENERIC ${TARGET_OS} ${TARGET_CPU})
+
+# Add project-specific paths and output directories (relative paths)
 set(REL_FPC_FLAGS_BASE
-    -Mdelphi
-    -Sc
-    -Cg
+    ${REL_FPC_FLAGS_BASE_GENERIC}
     "-Fi${REL_SRC_DIR}"
     "-Fl${REL_SRC_DIR}/include/sdl2"
     "-Fl${REL_SRC_DIR}/include/bass"
     "-FE."
     "-FU${REL_UNIT_OUTPUT_DIR}"
-    -Xd
 )
-
-# Add target flags
-# Note: Even cross-compilers like ppcrossx64 need -T flag to specify target OS
-if(USE_CROSS_COMPILER)
-    # Cross-compiler still needs -T flag for target OS
-    list(APPEND REL_FPC_FLAGS_BASE "-T${TARGET_OS}")
-elseif(NOT USE_CROSS_COMPILER)
-    # Regular fpc needs both -T and -P
-    list(APPEND REL_FPC_FLAGS_BASE
-        "-T${TARGET_OS}"
-        "-P${TARGET_CPU}"
-    )
-endif()
 
 # Common flags with relative paths
 set(REL_FPC_FLAGS_COMMON
@@ -300,27 +195,16 @@ set(REL_FPC_FLAGS_COMMON
 # Select relative flags based on mode
 if(MODE STREQUAL "debug")
     # Use DEBUG_FORMAT from toolchain file (already set above)
-    set(REL_DEBUG_FORMAT ${DEBUG_FORMAT})
+    fpc_build_debug_flags(REL_FPC_FLAGS_DEBUG_GENERIC ${DEBUG_FORMAT})
     set(REL_FPC_FLAGS
         ${REL_FPC_FLAGS_COMMON}
-        -g
-        -gh
-        -Cr
-        -Ct
-        -Ci
-        -Co
-        -Sa
-        ${REL_DEBUG_FORMAT}
-        -dDEBUG
+        ${REL_FPC_FLAGS_DEBUG_GENERIC}
     )
 else()
+    fpc_build_release_flags(REL_FPC_FLAGS_RELEASE_GENERIC)
     set(REL_FPC_FLAGS
         ${REL_FPC_FLAGS_COMMON}
-        -O3
-        -XX
-        -Xs
-        -gv
-        -dRELEASE
+        ${REL_FPC_FLAGS_RELEASE_GENERIC}
     )
 endif()
 
