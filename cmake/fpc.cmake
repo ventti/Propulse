@@ -16,47 +16,36 @@ include(cmake/platforms/linux.cmake)
 include(cmake/platforms/windows.cmake)
 
 # Find FPC compiler
-# Always try PATH first, then fall back to toolchain-specified paths
-# For cross-compilation, toolchain files set FPC_EXECUTABLE_NAME and FPC_SEARCH_PATHS
-# For native builds, use regular fpc compiler
+# Strategy: Try cross-compiler if needed, otherwise use regular fpc
+# Always check PATH first, then toolchain-specified paths
+
 # Check if we're actually cross-compiling (host != target)
 # When a toolchain file is used, CMake may set CMAKE_CROSSCOMPILING even for native builds
-set(IS_ACTUALLY_CROSSCOMPILING FALSE)
+set(IS_CROSSCOMPILING FALSE)
 if(CMAKE_CROSSCOMPILING)
     # Normalize processor names for comparison (aarch64 == arm64)
     string(REGEX REPLACE "^arm64$" "aarch64" NORMALIZED_HOST_PROC "${CMAKE_HOST_SYSTEM_PROCESSOR}")
     string(REGEX REPLACE "^arm64$" "aarch64" NORMALIZED_TARGET_PROC "${CMAKE_SYSTEM_PROCESSOR}")
     
-    # Check if host and target platforms match (native build despite toolchain file)
-    if(CMAKE_HOST_SYSTEM_NAME STREQUAL CMAKE_SYSTEM_NAME AND NORMALIZED_HOST_PROC STREQUAL NORMALIZED_TARGET_PROC)
-        set(IS_ACTUALLY_CROSSCOMPILING FALSE)
-        message(STATUS "Native build detected (host == target), using regular fpc compiler")
-    else()
-        set(IS_ACTUALLY_CROSSCOMPILING TRUE)
+    # Only cross-compiling if host and target differ
+    if(NOT (CMAKE_HOST_SYSTEM_NAME STREQUAL CMAKE_SYSTEM_NAME AND NORMALIZED_HOST_PROC STREQUAL NORMALIZED_TARGET_PROC))
+        set(IS_CROSSCOMPILING TRUE)
     endif()
 endif()
 
-if(IS_ACTUALLY_CROSSCOMPILING)
-    if(DEFINED FPC_EXECUTABLE_NAME)
-        # Try PATH first (most common case)
-        find_program(FPC_EXECUTABLE ${FPC_EXECUTABLE_NAME})
-        # If not found in PATH, try toolchain-specified paths
-        if(NOT FPC_EXECUTABLE AND DEFINED FPC_SEARCH_PATHS)
-            find_program(FPC_EXECUTABLE ${FPC_EXECUTABLE_NAME} PATHS ${FPC_SEARCH_PATHS} NO_DEFAULT_PATH)
-        endif()
-        # If cross-compiler still not found, fall back to regular fpc (may work for some targets)
-        if(NOT FPC_EXECUTABLE)
-            message(STATUS "Cross-compiler ${FPC_EXECUTABLE_NAME} not found, falling back to regular fpc")
-            find_program(FPC_EXECUTABLE fpc)
-        endif()
-    else()
-        # Toolchain file didn't set FPC_EXECUTABLE_NAME, fall back to regular fpc
-        # (This shouldn't happen if toolchain files are properly configured)
-        message(STATUS "Toolchain file didn't set FPC_EXECUTABLE_NAME, using regular fpc")
-        find_program(FPC_EXECUTABLE fpc)
+# Try cross-compiler first if cross-compiling and specified
+if(IS_CROSSCOMPILING AND DEFINED FPC_EXECUTABLE_NAME)
+    find_program(FPC_EXECUTABLE ${FPC_EXECUTABLE_NAME})
+    if(NOT FPC_EXECUTABLE AND DEFINED FPC_SEARCH_PATHS)
+        find_program(FPC_EXECUTABLE ${FPC_EXECUTABLE_NAME} PATHS ${FPC_SEARCH_PATHS} NO_DEFAULT_PATH)
     endif()
-else()
-    # Native build: use regular fpc compiler (PATH is checked first by find_program)
+endif()
+
+# Fall back to regular fpc (works for native builds and as fallback for cross-compilation)
+if(NOT FPC_EXECUTABLE)
+    if(IS_CROSSCOMPILING AND DEFINED FPC_EXECUTABLE_NAME)
+        message(STATUS "Cross-compiler ${FPC_EXECUTABLE_NAME} not found, using regular fpc")
+    endif()
     find_program(FPC_EXECUTABLE fpc)
 endif()
 
