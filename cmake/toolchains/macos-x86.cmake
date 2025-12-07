@@ -24,7 +24,7 @@ set(RTL_PLATFORM_UNIT_SUBDIRS "")
 set(RTL_PATH_SUFFIXES "units/${RTL_SUFFIX};lib/fpc/*/units/${RTL_SUFFIX};*/units/${RTL_SUFFIX}")
 set(RTL_USE_LINUX_PATHS FALSE)
 set(RTL_WARNING_PLATFORM "macOS")
-set(RTL_CROSSCOMPILE_ONLY TRUE)  # Only search RTL when cross-compiling
+set(RTL_CROSSCOMPILE_ONLY FALSE)  # Always search RTL (no special case for native builds)
 
 # FPC cross-compiler configuration
 set(FPC_EXECUTABLE_NAME "ppcrossx64")

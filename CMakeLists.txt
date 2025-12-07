@@ -117,20 +117,7 @@ else()
     set(OUTPUT_BINARY "${CMAKE_BINARY_DIR}/${PROJECT_NAME}-${TARGET_PLATFORM}${BINARY_EXT}")
 endif()
 
-# Add FCL JSON unit path for macOS builds
-if(TARGET_OS STREQUAL "darwin")
-    find_path(FCL_JSON_PATH
-        NAMES fcl-json
-        PATHS ${FPC_SEARCH_BASE_PATHS}
-        PATH_SUFFIXES
-            units/${TARGET_CPU}-${TARGET_OS}/fcl-json
-    )
-    if(FCL_JSON_PATH)
-        list(APPEND UNIT_PATHS "-Fu${FCL_JSON_PATH}")
-    endif()
-endif()
-
-# Add RTL unit paths for cross-compilation
+# Add RTL unit paths (including FCL units like fcl-json)
 # RTL configuration is set by toolchain files
 fpc_find_rtl_units(UNIT_PATHS ${TARGET_CPU} ${TARGET_OS})
 
