@@ -24,6 +24,7 @@ type
 		keyPlaybackSong,		keyPlaybackPattern,
 		keyPlaybackPlayFrom,	keyPlaybackStop,
 		keyPlaybackPrevPattern, keyPlaybackNextPattern,
+		keyGoToPlaybackPos,
 		keyControlsPrevious,	keyControlsNext,
 		keySongLength,			keyJumpToTime,
 		keySongNew,
@@ -980,6 +981,36 @@ begin
 				ChangeScreen(TCWEScreen(Editor));
 			end;
 
+		keyGoToPlaybackPos:
+			if not InModal then
+			begin
+				if (Module.PlayMode <> PLAY_STOPPED) then
+				begin
+					// Switch to Pattern Editor (like F2)
+					FollowPlayback := False;
+					Editor.ActiveControl := PatternEditor;
+					ChangeScreen(TCWEScreen(Editor));
+					// Move cursor to current playback position (like Shift+F8, but without stopping)
+					CurrentPattern := Module.PlayPos.Pattern;
+					PatternEditor.Cursor.Row := Module.PlayPos.Row;
+					OrderList.Cursor.Y := Module.PlayPos.Order;
+					PatternEditor.ValidateCursor;
+					Editor.UpdateInfoLabels;
+					if CurrentScreen = Editor then
+					begin
+						PatternEditor.Paint;
+						OrderList.Paint;
+					end;
+				end
+				else
+				begin
+					// If not playing, just switch to Pattern Editor (like F2)
+					FollowPlayback := False;
+					Editor.ActiveControl := PatternEditor;
+					ChangeScreen(TCWEScreen(Editor));
+				end;
+			end;
+
 		keyScreenOrderList:
 			if not InModal then
 			begin
@@ -1812,6 +1843,7 @@ begin
 		Bind(keyToggleChannel2, 		'Playback.ToggleChannel.2',	'Ctrl+2');
 		Bind(keyToggleChannel3, 		'Playback.ToggleChannel.3',	'Ctrl+3');
 		Bind(keyToggleChannel4, 		'Playback.ToggleChannel.4',	'Ctrl+4');
+		Bind(keyGoToPlaybackPos, 		'Playback.GoToPosition',		'g');
 
 		FileOpKeys := SetContext('FileOperations');
 
