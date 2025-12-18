@@ -244,71 +244,71 @@ else()
     set(PACKAGE_BINARY_NAME "${PROJECT_NAME}-${TARGET_PLATFORM}${BINARY_EXT}")
 endif()
 
-# Install rules for binaries and libraries
+# Platform-specific library lists
+# Default binary rename (used for macOS and Linux)
+set(BINARY_RENAME "${PROJECT_NAME}")
+
 if(TARGET_OS STREQUAL "win64")
-    # Install binary from build directory
-    install(FILES "${CMAKE_BINARY_DIR}/${PACKAGE_BINARY_NAME}"
-        DESTINATION "."
-        RENAME "${PROJECT_NAME}.exe"
-        COMPONENT Runtime
-    )
-    
-    # Install DLLs from build directory
-    install(FILES
+    set(PLATFORM_LIBS
         "${CMAKE_BINARY_DIR}/bass.dll"
         "${CMAKE_BINARY_DIR}/SDL2.dll"
         "${CMAKE_BINARY_DIR}/libsoxr.dll"
-        DESTINATION "."
-        COMPONENT Runtime
-        OPTIONAL
     )
-    
-    # Install data directory
-    install(DIRECTORY "${CMAKE_SOURCE_DIR}/data"
-        DESTINATION "."
-        COMPONENT Runtime
-    )
-    
-    # Install license
-    install(FILES "${CMAKE_SOURCE_DIR}/license.txt"
-        DESTINATION "."
-        COMPONENT Runtime
-        OPTIONAL
-    )
-    
+    set(BINARY_RENAME "${PROJECT_NAME}.exe")
+    set(BINARY_PERMISSIONS "")
 elseif(TARGET_OS STREQUAL "darwin")
-    # Install binary from build directory
-    install(FILES "${CMAKE_BINARY_DIR}/${PACKAGE_BINARY_NAME}"
-        DESTINATION "."
-        RENAME "Propulse"
-        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-        COMPONENT Runtime
-    )
-    
-    # Install dylibs from build directory
-    install(FILES
+    set(PLATFORM_LIBS
         "${CMAKE_BINARY_DIR}/libbass.dylib"
         "${CMAKE_BINARY_DIR}/libSDL2.dylib"
         "${CMAKE_BINARY_DIR}/libsoxr.dylib"
-        DESTINATION "."
-        COMPONENT Runtime
-        OPTIONAL
     )
-    
-    # Install data directory
-    install(DIRECTORY "${CMAKE_SOURCE_DIR}/data"
-        DESTINATION "."
-        COMPONENT Runtime
+    set(BINARY_PERMISSIONS PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+elseif(TARGET_OS STREQUAL "linux")
+    set(PLATFORM_LIBS
+        "${CMAKE_BINARY_DIR}/libbass.so"
+        "${CMAKE_BINARY_DIR}/libSDL2-2.0.so.0"
+        "${CMAKE_BINARY_DIR}/libsoxr.so.0"
     )
-    
-    # Install license
-    install(FILES "${CMAKE_SOURCE_DIR}/license.txt"
-        DESTINATION "."
-        COMPONENT Runtime
-        OPTIONAL
-    )
-    
-    # Post-install: Fix dylib paths for macOS
+    set(BINARY_PERMISSIONS PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+endif()
+
+# Common install rules for binaries and libraries
+# Install binary from build directory
+install(FILES "${CMAKE_BINARY_DIR}/${PACKAGE_BINARY_NAME}"
+    DESTINATION "."
+    RENAME "${BINARY_RENAME}"
+    ${BINARY_PERMISSIONS}
+    COMPONENT Runtime
+)
+
+# Install platform-specific libraries
+install(FILES ${PLATFORM_LIBS}
+    DESTINATION "."
+    COMPONENT Runtime
+    OPTIONAL
+)
+
+# Install data directory
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/data"
+    DESTINATION "."
+    COMPONENT Runtime
+)
+
+# Install docs directory
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/docs"
+    DESTINATION "."
+    COMPONENT Runtime
+)
+
+# Install license
+install(FILES "${CMAKE_SOURCE_DIR}/license.txt"
+    DESTINATION "."
+    COMPONENT Runtime
+    OPTIONAL
+)
+
+# macOS-specific post-install: Fix dylib paths
+if(TARGET_OS STREQUAL "darwin")
     # Create a script file to avoid escaping issues and ensure proper error handling
     # Use relative path from build directory to avoid issues with parentheses in paths
     file(RELATIVE_PATH REL_FIX_SCRIPT ${CMAKE_BINARY_DIR} ${CMAKE_BINARY_DIR}/fix-dylib-install.sh)
@@ -355,37 +355,6 @@ exit 0
             endif()
         endif()
     " COMPONENT Runtime)
-elseif(TARGET_OS STREQUAL "linux")
-    # Install binary from build directory
-    install(FILES "${CMAKE_BINARY_DIR}/${PACKAGE_BINARY_NAME}"
-        DESTINATION "."
-        RENAME "Propulse"
-        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-        COMPONENT Runtime
-    )
-    
-    # Install shared libraries from build directory
-    install(FILES
-        "${CMAKE_BINARY_DIR}/libbass.so"
-        "${CMAKE_BINARY_DIR}/libSDL2-2.0.so.0"
-        "${CMAKE_BINARY_DIR}/libsoxr.so.0"
-        DESTINATION "."
-        COMPONENT Runtime
-        OPTIONAL
-    )
-    
-    # Install data directory
-    install(DIRECTORY "${CMAKE_SOURCE_DIR}/data"
-        DESTINATION "."
-        COMPONENT Runtime
-    )
-    
-    # Install license
-    install(FILES "${CMAKE_SOURCE_DIR}/license.txt"
-        DESTINATION "."
-        COMPONENT Runtime
-        OPTIONAL
-    )
 endif()
 
 # CPack configuration for packaging
