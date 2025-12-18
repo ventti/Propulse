@@ -62,6 +62,26 @@ if(NOT DEFINED MODE)
     set(MODE "release")
 endif()
 
+# Get git describe information at build time
+# This will be regenerated on each build via a custom command
+set(GIT_DESCRIBE_INC "${SRC_DIR}/include/gitdescribe.inc")
+set(GIT_DESCRIBE "unknown")
+find_program(GIT_EXECUTABLE git)
+if(GIT_EXECUTABLE)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --always --tags --dirty
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_DESCRIBE
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+endif()
+if(NOT GIT_DESCRIBE OR GIT_DESCRIBE STREQUAL "")
+    set(GIT_DESCRIBE "unknown")
+endif()
+# Write initial version (will be regenerated at build time)
+file(WRITE ${GIT_DESCRIBE_INC} "'${GIT_DESCRIBE}'")
+
 # FPC compiler finding and cross-compiler detection is handled in cmake/fpc.cmake
 
 # Compiler flags base
@@ -124,6 +144,42 @@ fpc_find_rtl_units(UNIT_PATHS ${TARGET_CPU} ${TARGET_OS})
 # Create output directories
 file(MAKE_DIRECTORY ${UNIT_OUTPUT_DIR})
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR})
+
+# Custom command to regenerate gitdescribe.inc at build time
+# This ensures git describe is always up-to-date
+if(GIT_EXECUTABLE)
+    # Create a script to run git describe and write to file
+    set(GIT_DESCRIBE_SCRIPT "${CMAKE_BINARY_DIR}/generate_git_describe.sh")
+    if(CMAKE_HOST_WIN32)
+        set(GIT_DESCRIBE_SCRIPT "${CMAKE_BINARY_DIR}/generate_git_describe.bat")
+        file(WRITE ${GIT_DESCRIBE_SCRIPT} "@echo off
+cd /d \"${CMAKE_SOURCE_DIR}\"
+for /f \"delims=\" %%i in ('\"${GIT_EXECUTABLE}\" describe --always --tags --dirty 2^>nul') do set GIT_DESC=%%i
+if \"%GIT_DESC%\"==\"\" set GIT_DESC=unknown
+echo '%GIT_DESC%' > \"${GIT_DESCRIBE_INC}\"
+")
+    else()
+        file(WRITE ${GIT_DESCRIBE_SCRIPT} "#!/bin/sh
+cd \"${CMAKE_SOURCE_DIR}\"
+GIT_DESC=\"$(${GIT_EXECUTABLE} describe --always --tags --dirty 2>/dev/null)\"
+if [ -z \"$GIT_DESC\" ]; then
+    GIT_DESC=\"unknown\"
+fi
+echo \"'$GIT_DESC'\" > \"${GIT_DESCRIBE_INC}\"
+")
+        file(CHMOD ${GIT_DESCRIBE_SCRIPT} FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
+    endif()
+    
+    add_custom_command(
+        OUTPUT ${GIT_DESCRIBE_INC}
+        COMMAND ${GIT_DESCRIBE_SCRIPT}
+        COMMENT "Generating git describe information"
+        VERBATIM
+    )
+else()
+    # No git available, create file with "unknown"
+    file(WRITE ${GIT_DESCRIBE_INC} "'unknown'")
+endif()
 
 # Convert absolute paths to relative paths from build directory to avoid FPC linker script issues with parentheses
 # This helps FPC generate linker scripts with relative paths that don't have shell parsing issues
@@ -200,6 +256,13 @@ if(DEFINED LIB_PATHS_EXTRA AND NOT LIB_PATHS_EXTRA STREQUAL "")
     list(APPEND REL_LIB_PATHS ${LIB_PATHS_EXTRA})
 endif()
 
+# macOS-specific linker configuration
+# Note: FPC automatically adds -no_dead_strip_inits_and_terms internally for macOS,
+# which causes a linker warning about the obsolete flag. Modern linkers preserve
+# initialization/termination code automatically, so this flag is redundant.
+# The warning is harmless and the linker works correctly. This is an FPC limitation
+# that would require modifying FPC's source code to fix properly.
+
 # Custom command to build the binary using FPC
 # Use relative paths and set working directory to build directory to avoid FPC linker script issues
 # Use VERBATIM to ensure proper quoting of arguments with spaces
@@ -217,7 +280,7 @@ add_custom_command(
         -k-lbass
         -k-lsoxr
         ${REL_LIB_PATHS}
-    DEPENDS ${MAIN_SOURCE} ${RESOURCE_FILE} ${ALL_PAS_FILES}
+    DEPENDS ${MAIN_SOURCE} ${RESOURCE_FILE} ${ALL_PAS_FILES} ${GIT_DESCRIBE_INC}
     COMMENT "Compiling ${PROJECT_NAME} for ${TARGET_PLATFORM}"
     VERBATIM
 )
