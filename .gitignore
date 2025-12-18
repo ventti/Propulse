@@ -126,3 +126,6 @@ bin/data
 
 build/
 release/
+
+# Generated build info
+src/include/gitdescribe.inc

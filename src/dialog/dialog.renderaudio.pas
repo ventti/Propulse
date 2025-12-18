@@ -92,7 +92,7 @@ begin
 				ModalDialog.MessageDialog(ACTION_SAMPLEOVERWRITE,
 					'Overwrite Sample',
 					'Current sample is not empty. Proceed?',
-					[btnYes, btnCancel], btnCancel, DialogCallback, 0);
+					[btnYes, btnCancel], btnCancel, DialogCallback, Variant(Integer(0)));
 			end
 			else
 				SelToSample;

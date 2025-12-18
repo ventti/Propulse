@@ -432,7 +432,7 @@ begin
 	begin
 		ModalDialog.MessageDialog(ACTION_DELETEFILE, 'Delete File',
 			Format('Delete "%s"?', [ExtractFilename(Filename)]),
-			[btnYES, btnCancel], btnCancel, Window.DialogCallback, 0);
+			[btnYES, btnCancel], btnCancel, Window.DialogCallback, Variant(Integer(0)));
 	end
 	else
 	begin
@@ -457,7 +457,7 @@ begin
 	begin
 		ModalDialog.MessageDialog(ACTION_DELETEDIR, 'Delete Directory',
 			Format('Delete directory "%s"?', [DirList.Items[DirList.ItemIndex].Captions[0]]),
-			[btnYES, btnCancel], btnCancel, Window.DialogCallback, 0);
+			[btnYES, btnCancel], btnCancel, Window.DialogCallback, Variant(Integer(0)));
 	end
 	else
 	begin
@@ -1066,7 +1066,7 @@ begin
 	begin
 		ModalDialog.MessageDialog(ACTION_LOADMODULE,
 			'Load Module', 'Current module not saved. Proceed?',
-			[btnOK, btnCancel], btnCancel, Window.DialogCallback, Filename);
+			[btnOK, btnCancel], btnCancel, Window.DialogCallback, Variant(AnsiString(Filename)));
 	end
 	else
 		Window.DoLoadModule(Filename);
@@ -1088,10 +1088,10 @@ begin
 		StrOW := Format('Overwrite file "%s"?', [ExtractFilename(Filename)]);
 		if not InSampleReq then
 			ModalDialog.MessageDialog(ACTION_SAVEFILE, 'Save Module', StrOW,
-				[btnYES, btnCancel], btnCancel, Window.DialogCallback, 0)
+				[btnYES, btnCancel], btnCancel, Window.DialogCallback, Variant(Integer(0)))
 		else
 			ModalDialog.MessageDialog(ACTION_SAVEFILE, 'Save Sample', StrOW,
-				[btnYES, btnCancel], btnCancel, Window.DialogCallback, 0);
+				[btnYES, btnCancel], btnCancel, Window.DialogCallback, Variant(Integer(0)));
 	end
 	else
 		PatternEditor.SaveModule(Filename);

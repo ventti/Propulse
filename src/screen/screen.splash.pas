@@ -227,7 +227,10 @@ begin
 		Scroll.Clear(TRANSCOLOR);
 	end;
 
-	Console.WriteHeader('Propulse Tracker v' + VERSION + ' '+#7+' '+ Build.CompileDate, 1);
+	if Build.GitDescribe <> 'unknown' then
+		Console.WriteHeader('Propulse Tracker v' + ProTracker.Util.VERSION + ' (' + Build.GitDescribe + ') '+#7+' '+ Build.CompileDate, 1)
+	else
+		Console.WriteHeader('Propulse Tracker v' + ProTracker.Util.VERSION + ' '+#7+' '+ Build.CompileDate, 1);
 
 	Y := Console.Height - 9;
 

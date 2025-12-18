@@ -414,8 +414,8 @@ begin
 	begin
 		OrderlistKeys := SetContext('OrderList');
 
-		Bind(keySetLength,		'SetLength',	ShortCut(SDLK_SPACE));
-		Bind(keyEditPattern,	'EditPattern',	ShortCut(SDLK_RETURN));
+		Bind(Variant(Integer(keySetLength)),		'SetLength',	ShortCut(SDLK_SPACE));
+		Bind(Variant(Integer(keyEditPattern)),	'EditPattern',	ShortCut(SDLK_RETURN));
 	end;
 
 	// register all label controls
@@ -575,6 +575,7 @@ begin
 	begin
 		wh := w div 4 + 1;
 		Inc(hh, oy);
+		p := 0.0; // initialize
 		if Len > 0 then
 			p := (Len div 4 - 1) / wh; // step
 
@@ -591,7 +592,7 @@ begin
 			begin
 				for X := ox to re do
 					Console.Bitmap.Pixel[X,
-						hh + Trunc(ScopeBuffer[ch, Trunc({%H-}p * (X-ox))] / 65536 * h)] := C;
+						hh + Trunc(ScopeBuffer[ch, Trunc(p * (X-ox))] / 65536 * h)] := C;
 			end
 			else
 				Console.Bitmap.HorzLine(ox, hh, re, C);

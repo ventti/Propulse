@@ -536,7 +536,7 @@ begin
 							Format('An autosave file was found from %s, which is newer than the loaded file.'#13 +
 								'Would you like to restore the autosave?',
 								[FormatDateTime('YYYY-mm-dd hh:nn:ss', FileTime)]),
-							[btnYes, btnNo], btnYes, DialogCallback, RecoveryFilename);
+							[btnYes, btnNo], btnYes, DialogCallback, Variant(AnsiString(RecoveryFilename)));
 					end;
 				except
 					// Ignore errors
@@ -1338,8 +1338,9 @@ begin
 	X := MouseCursor.Pos.X;
 	Y := MouseCursor.Pos.Y;
 
+	FillChar(InputEvent, SizeOf(InputEvent), 0);
 	while SDL_PollEvent(@InputEvent) <> 0 do
-	case {%H-}InputEvent.type_ of
+	case InputEvent.type_ of
 
 		SDL_USEREVENT:			// messages from playroutine/midi handler
 		case InputEvent.user.code of
@@ -1811,48 +1812,48 @@ begin
 	begin
 		GlobalKeys := SetContext('Global');
 
-		Bind(keyMainMenu,				'Program.Menu',				'Escape');
-		Bind(keyProgramQuit, 			'Program.Quit', 			'Ctrl+Q');
-		Bind(keyProgramFullscreen, 		'Program.Fullscreen', 		'Alt+Return');
-		Bind(keyScreenHelp, 			'Screen.Help', 				'F1');
-		Bind(keyScreenPatternEditor, 	'Screen.PatternEditor', 	'F2');
-		Bind(keyScreenSamples, 			'Screen.Samples', 			'F3');
-		Bind(keyScreenLoad, 			'Screen.Load', 				['F9', 'Ctrl+L', 'Ctrl+O']);
-		Bind(keyScreenSave, 			'Screen.Save', 				['F10', 'Ctrl+W']);
-		Bind(keyCleanup, 				'Song.Cleanup',				'Ctrl+Shift+C');
-		Bind(keyScreenOrderList, 		'Screen.OrderList', 		'F11');
-		Bind(keyScreenLog, 				'Screen.Log', 				['F4', 'Ctrl+F11']);
-		Bind(keyMetadataNotes,			'Metadata.Notes',			['Shift+F4']);
-		Bind(keyMetadataNext,			'Metadata.Next',			['Ctrl+Shift+N']);
-		Bind(keyMetadataPrev,			'Metadata.Previous',		['Ctrl+Shift+P']);
-		Bind(keyScreenAbout, 			'Screen.About', 			'Ctrl+F1');
-		Bind(keyScreenConfig, 			'Screen.Config', 			'F12');
-		Bind(keyPlaybackSong, 			'Playback.Song', 			'F5');
-		Bind(keyPlaybackPattern, 		'Playback.Pattern', 		'F6');
-		Bind(keyPlaybackPlayFrom, 		'Playback.PlayFrom', 		'F7');
-		Bind(keyPlaybackStop, 			'Playback.Stop', 			['F8', 'Shift+F8']);
-		Bind(keyPlaybackPrevPattern, 	'Playback.PrevPattern', 	'Ctrl+Left');
-		Bind(keyPlaybackNextPattern, 	'Playback.NextPattern', 	'Ctrl+Right');
-		Bind(keySongLength, 			'Song.Length', 				'Ctrl+P');
-		Bind(keyJumpToTime, 			'Song.JumpToTime', 			'Ctrl+Shift+P');
-		Bind(keySongNew, 				'Song.New', 				'Ctrl+N');
-		Bind(keyRenderToSample, 		'Song.RenderToSample',		'Shift+F10');
-		Bind(keySaveCurrent, 			'Song.SaveCurrent', 		'Ctrl+S');
-		Bind(keyMouseCursor, 			'Program.MouseCursor', 		'Ctrl+M');
-		Bind(keyToggleChannel1, 		'Playback.ToggleChannel.1',	'Ctrl+1');
-		Bind(keyToggleChannel2, 		'Playback.ToggleChannel.2',	'Ctrl+2');
-		Bind(keyToggleChannel3, 		'Playback.ToggleChannel.3',	'Ctrl+3');
-		Bind(keyToggleChannel4, 		'Playback.ToggleChannel.4',	'Ctrl+4');
-		Bind(keyGoToPlaybackPos, 		'Playback.GoToPosition',		'g');
+		Bind(Variant(Integer(keyMainMenu)),				'Program.Menu',				'Escape');
+		Bind(Variant(Integer(keyProgramQuit)), 			'Program.Quit', 			'Ctrl+Q');
+		Bind(Variant(Integer(keyProgramFullscreen)), 		'Program.Fullscreen', 		'Alt+Return');
+		Bind(Variant(Integer(keyScreenHelp)), 			'Screen.Help', 				'F1');
+		Bind(Variant(Integer(keyScreenPatternEditor)), 	'Screen.PatternEditor', 	'F2');
+		Bind(Variant(Integer(keyScreenSamples)), 			'Screen.Samples', 			'F3');
+		Bind(Variant(Integer(keyScreenLoad)), 			'Screen.Load', 				['F9', 'Ctrl+L', 'Ctrl+O']);
+		Bind(Variant(Integer(keyScreenSave)), 			'Screen.Save', 				['F10', 'Ctrl+W']);
+		Bind(Variant(Integer(keyCleanup)), 				'Song.Cleanup',				'Ctrl+Shift+C');
+		Bind(Variant(Integer(keyScreenOrderList)), 		'Screen.OrderList', 		'F11');
+		Bind(Variant(Integer(keyScreenLog)), 				'Screen.Log', 				['F4', 'Ctrl+F11']);
+		Bind(Variant(Integer(keyMetadataNotes)),			'Metadata.Notes',			['Shift+F4']);
+		Bind(Variant(Integer(keyMetadataNext)),			'Metadata.Next',			['Ctrl+Shift+N']);
+		Bind(Variant(Integer(keyMetadataPrev)),			'Metadata.Previous',		['Ctrl+Shift+P']);
+		Bind(Variant(Integer(keyScreenAbout)), 			'Screen.About', 			'Ctrl+F1');
+		Bind(Variant(Integer(keyScreenConfig)), 			'Screen.Config', 			'F12');
+		Bind(Variant(Integer(keyPlaybackSong)), 			'Playback.Song', 			'F5');
+		Bind(Variant(Integer(keyPlaybackPattern)), 		'Playback.Pattern', 		'F6');
+		Bind(Variant(Integer(keyPlaybackPlayFrom)), 		'Playback.PlayFrom', 		'F7');
+		Bind(Variant(Integer(keyPlaybackStop)), 			'Playback.Stop', 			['F8', 'Shift+F8']);
+		Bind(Variant(Integer(keyPlaybackPrevPattern)), 	'Playback.PrevPattern', 	'Ctrl+Left');
+		Bind(Variant(Integer(keyPlaybackNextPattern)), 	'Playback.NextPattern', 	'Ctrl+Right');
+		Bind(Variant(Integer(keySongLength)), 			'Song.Length', 				'Ctrl+P');
+		Bind(Variant(Integer(keyJumpToTime)), 			'Song.JumpToTime', 			'Ctrl+Shift+P');
+		Bind(Variant(Integer(keySongNew)), 				'Song.New', 				'Ctrl+N');
+		Bind(Variant(Integer(keyRenderToSample)), 		'Song.RenderToSample',		'Shift+F10');
+		Bind(Variant(Integer(keySaveCurrent)), 			'Song.SaveCurrent', 		'Ctrl+S');
+		Bind(Variant(Integer(keyMouseCursor)), 			'Program.MouseCursor', 		'Ctrl+M');
+		Bind(Variant(Integer(keyToggleChannel1)), 		'Playback.ToggleChannel.1',	'Ctrl+1');
+		Bind(Variant(Integer(keyToggleChannel2)), 		'Playback.ToggleChannel.2',	'Ctrl+2');
+		Bind(Variant(Integer(keyToggleChannel3)), 		'Playback.ToggleChannel.3',	'Ctrl+3');
+		Bind(Variant(Integer(keyToggleChannel4)), 		'Playback.ToggleChannel.4',	'Ctrl+4');
+		Bind(Variant(Integer(keyGoToPlaybackPos)), 		'Playback.GoToPosition',		'g');
 
 		FileOpKeys := SetContext('FileOperations');
 
-		Bind(filekeyRename,				'File.Rename',				'Shift+F2');
-		Bind(filekeyCopy,				'File.Copy',				'Shift+F5');
-		Bind(filekeyMove,				'File.Move',				'Shift+F6');
-		Bind(filekeyDelete,				'File.Delete',				['Shift+F8', 'Delete']);
-		Bind(filekeyCreate,				'File.CreateDir',			'Shift+F7');
-		Bind(filekeyModMerge,			'File.MergeModule',			'Shift+Return');
+		Bind(Variant(Integer(filekeyRename)),				'File.Rename',				'Shift+F2');
+		Bind(Variant(Integer(filekeyCopy)),				'File.Copy',				'Shift+F5');
+		Bind(Variant(Integer(filekeyMove)),				'File.Move',				'Shift+F6');
+		Bind(Variant(Integer(filekeyDelete)),				'File.Delete',				['Shift+F8', 'Delete']);
+		Bind(Variant(Integer(filekeyCreate)),				'File.CreateDir',			'Shift+F7');
+		Bind(Variant(Integer(filekeyModMerge)),			'File.MergeModule',			'Shift+Return');
 	end;
 
 	// Load any user-defined shortcuts
@@ -1900,8 +1901,12 @@ begin
 	// Log startup messages
 	//
 	Log('');
-	Log(TEXT_HEAD + 'Propulse Tracker v' + ProTracker.Util.VERSION + ' (built on ' +
-		Build.CompileDate + ' ' + Build.CompileTime + ')');
+	if Build.GitDescribe <> 'unknown' then
+		Log(TEXT_HEAD + 'Propulse Tracker v' + ProTracker.Util.VERSION + ' (' + Build.GitDescribe + ') (built on ' +
+			Build.CompileDate + ' ' + Build.CompileTime + ')')
+	else
+		Log(TEXT_HEAD + 'Propulse Tracker v' + ProTracker.Util.VERSION + ' (built on ' +
+			Build.CompileDate + ' ' + Build.CompileTime + ')');
 	Log('');
 	Log(TEXT_LIGHT + '(C) 2016-2019 hukka (Joel Toivonen)');
 	Log(TEXT_LIGHT + 'fork and knife by vent + tempest (2025)');
@@ -2129,7 +2134,7 @@ begin
 		ModalDialog.MessageDialog(ACTION_QUIT,
 			'Quit Propulse Tracker',
 			'There are unsaved changes. Discard and quit?',
-			[btnOK, btnCancel], btnCancel, DialogCallback, 0)
+			[btnOK, btnCancel], btnCancel, DialogCallback, Variant(Integer(0)))
 	end
 	else
 		QuitFlag := True;
@@ -2314,7 +2319,7 @@ begin
 			Format('An autosave file was found from %s.'#13 +
 				'Would you like to restore your unsaved work?',
 				[FormatDateTime('YYYY-mm-dd hh:nn:ss', MostRecentTime)]),
-			[btnYes, btnNo], btnYes, DialogCallback, MostRecentFile);
+			[btnYes, btnNo], btnYes, DialogCallback, Variant(AnsiString(MostRecentFile)));
 		Result := True; // Dialog was shown
 	end;
 end;

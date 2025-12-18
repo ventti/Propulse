@@ -375,8 +375,8 @@ const
 
 	procedure LogDebug(const Msg: AnsiString);
 	procedure LogIfDebug(const Msg: AnsiString);
-	procedure LogError(const Msg: AnsiString); inline;
-	procedure LogFatal(const Msg: AnsiString); inline;
+	procedure LogError(const Msg: AnsiString);
+	procedure LogFatal(const Msg: AnsiString);
 
 	// Autosave interval helper functions
 	function  GetAutosaveIntervalFrames(IntervalValue: Byte): Integer;

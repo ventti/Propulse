@@ -391,7 +391,7 @@ end;
 
 procedure TCWEDialog.ShowMessage(const Caption, Text: AnsiString);
 begin
-	MessageDialog(0, Caption, Text, [btnOK], btnOK, nil, 0);
+	MessageDialog(0, Caption, Text, [btnOK], btnOK, nil, Variant(Integer(0)));
 end;
 
 procedure TCWEDialog.MultiLineMessage(const Caption, Text: AnsiString);
