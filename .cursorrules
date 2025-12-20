@@ -1,5 +1,9 @@
 # Cursor Rules for Propulse Tracker
 
+## General Guidelines
+
+- **Don't invent changes other than what's explicitly requested** - Only make changes that are directly asked for. Do not add "improvements", "fixes", or "optimizations" unless explicitly requested.
+
 ## Commit Message Conventions
 
 When making commits (especially when the AI agent generates commit messages), follow these rules:
@@ -58,6 +62,11 @@ Bad commit messages:
 - Use consistent indentation (spaces or tabs as per existing code)
 - Comment complex logic
 - Keep functions focused and reasonably sized
+
+## Pascal/FPC build safety (avoid known ICE patterns)
+
+- Prefer **a single `const` block** for related constants; avoid consecutive `const` sections in the same unit (workaround for FPC internal compiler errors seen in cross-compilation).
+- If cross-compiling fails with an **FPC internal error**, try the smallest syntax reshapes first (reorder constants, merge sections, avoid unusual literal forms) before larger refactors.
 
 ## File Organization
 
