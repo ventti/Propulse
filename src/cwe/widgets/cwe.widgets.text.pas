@@ -12,17 +12,14 @@ uses
 	CWE.Core, CWE.Widgets.Scrollers;
 
 const
+	LISTITEM_HEADER = 32767;
+
 	COLUMNSEPARATOR = #255;
-
-	LISTITEM_HEADER = MaxInt;
-
 	ALIGN_LEFT   = 0;
 	ALIGN_CENTER = 1;
 	ALIGN_RIGHT  = 2;
 	ALIGN_HEADER = 3;
-
 	MAXCOLUMNS   = 3;		// max columns for list widget, 0-based
-
 	COLOR_LINK           = 10;
 	COLOR_LINK_HOVER     = 11;
 	COLOR_LINK_HOVERBACK = 15;

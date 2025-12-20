@@ -13,7 +13,7 @@ const
 
 	LI_LOADABLE  = 0;
 	LI_ENTERABLE = 1;
-	LI_UNENTER   = LISTITEM_HEADER;
+	LI_UNENTER   = 32767; // Same as LISTITEM_HEADER, defined here to avoid cross-compiler constant resolution issue
 
 	COLOR_ENTERABLE       = 3;  // module
 	COLOR_UNENTER         = 10; // dir up
