@@ -1346,7 +1346,8 @@ begin
 			Cursor.Y,
 			PatternEditor.Cursor.Row,
 			PatternEditor.Cursor.Channel,
-			Ord(PatternEditor.Cursor.Column)
+			Ord(PatternEditor.Cursor.Column),
+			PatternEditor.ScrollPos
 		);
 end;
 

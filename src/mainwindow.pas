@@ -988,6 +988,7 @@ begin
 					if Assigned(OrderList) then
 						OrderList.Cursor.Y := LastEditPos.Order;
 
+					PatternEditor.ScrollPos := LastEditPos.ScrollPos;
 					PatternEditor.Cursor.Row := LastEditPos.Row;
 					PatternEditor.Cursor.Channel := LastEditPos.Channel;
 					// Guard against invalid column values

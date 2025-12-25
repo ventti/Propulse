@@ -202,6 +202,7 @@ type
 		Row: Byte;
 		Channel: Byte;
 		Column: Byte; // Ord(EditColumn)
+		ScrollPos: Byte; // pattern editor scroll offset (top row)
 	end;
 
 var
@@ -397,7 +398,7 @@ const
 var
 	OnLog: procedure (const Msg: AnsiString) of Object;
 
-procedure RememberLastEditPosition(Pattern, Order, Row, Channel, Column: Byte);
+procedure RememberLastEditPosition(Pattern, Order, Row, Channel, Column, ScrollPos: Byte);
 
 
 implementation
@@ -415,7 +416,7 @@ uses
 	ProTracker.Player,
 	CWE.Dialogs;
 
-procedure RememberLastEditPosition(Pattern, Order, Row, Channel, Column: Byte);
+procedure RememberLastEditPosition(Pattern, Order, Row, Channel, Column, ScrollPos: Byte);
 begin
 	LastEditPos.Valid := True;
 	LastEditPos.Pattern := Pattern;
@@ -423,6 +424,7 @@ begin
 	LastEditPos.Row := Row;
 	LastEditPos.Channel := Channel;
 	LastEditPos.Column := Column;
+	LastEditPos.ScrollPos := ScrollPos;
 end;
 
 

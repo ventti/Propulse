@@ -1452,7 +1452,8 @@ begin
 			OrderList.Cursor.Y,
 			Cursor.Row,
 			Cursor.Channel,
-			Ord(Cursor.Column)
+			Ord(Cursor.Column),
+			ScrollPos
 		)
 	else
 		RememberLastEditPosition(
@@ -1460,7 +1461,8 @@ begin
 			0,
 			Cursor.Row,
 			Cursor.Channel,
-			Ord(Cursor.Column)
+			Ord(Cursor.Column),
+			ScrollPos
 		);
 end;
 
