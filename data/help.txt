@@ -28,6 +28,7 @@
   Shift-F7          Play from stored order position, beginning of pattern
   F8                Stop playback and restore cursor to start position
   Shift-F8          Stop playback and keep cursor at current position
+  g                 Set cursor to current playback position (do not stop playback)
   F9                Load module (also Ctrl-L, Ctrl-O)
   F10               Save module (also Ctrl-W)
   F11               Orderlist
