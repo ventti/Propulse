@@ -84,3 +84,20 @@ Bad commit messages:
 
 See `COMMIT_CONVENTIONS.md` for more details.
 
+## Playback shortcuts + cursor positioning (investigation pointers)
+
+- **Shortcut entry points**:
+  - Global keys are bound and dispatched in `src/mainwindow.pas` (`Shortcuts.Bind(...)`, `TWindow.OnKeyDown`)
+  - Screen-/control-specific handling may live in the relevant `src/screen/*.pas` unit (`KeyDown(...)`)
+
+- **Two positions exist while playing**:
+  - The *playback position* is tracked by the module player (`Module.PlayPos` / `TPTModule.PlayPos`)
+  - The *edit cursor position* is tracked by UI controls (e.g. `PatternEditor.Cursor`, `OrderList.Cursor`)
+  - `FollowPlayback` affects *view following* (scroll/pattern) and should not be assumed to move the edit cursor
+
+- **How playback position updates reach the UI**:
+  - The player posts SDL user events (e.g. row/order change) via `PostMessagePtr(...)` (`src/protracker/protracker.messaging.pas`)
+  - The main loop handles those events in `src/mainwindow.pas` and refreshes UI (`UpdatePatternView`, `ModuleOrderChanged`)
+
+- **User-facing help text**: `data/help.txt` (loaded by `src/screen/screen.help.pas`)
+
