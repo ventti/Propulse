@@ -979,6 +979,32 @@ begin
 				FollowPlayback := False;
 				Editor.ActiveControl := PatternEditor;
 				ChangeScreen(TCWEScreen(Editor));
+
+				// When returning to the pattern editor, restore the last edit position
+				// (separate from the live playback position shown while FollowPlayback is on).
+				if LastEditPos.Valid then
+				begin
+					CurrentPattern := LastEditPos.Pattern;
+					if Assigned(OrderList) then
+						OrderList.Cursor.Y := LastEditPos.Order;
+
+					PatternEditor.Cursor.Row := LastEditPos.Row;
+					PatternEditor.Cursor.Channel := LastEditPos.Channel;
+					// Guard against invalid column values
+					if LastEditPos.Column <= Ord(COL_NEXTCHANNEL) then
+						PatternEditor.Cursor.Column := EditColumn(LastEditPos.Column)
+					else
+						PatternEditor.Cursor.Column := COL_NOTE;
+
+					PatternEditor.ValidateCursor;
+					Editor.UpdateInfoLabels;
+					if CurrentScreen = Editor then
+					begin
+						PatternEditor.Paint;
+						if Assigned(OrderList) then
+							OrderList.Paint;
+					end;
+				end;
 			end;
 
 		keyGoToPlaybackPos:

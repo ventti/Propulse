@@ -1443,6 +1443,25 @@ begin
 
 	Cursor.X := EditColumnX[Cursor.Column] + (Cursor.Channel * PATTERN_CHAN_WIDTH);
 	Cursor.Note := @Module.Notes[CurrentPattern, Cursor.Channel, Cursor.Row];
+
+	// Remember last edit cursor position separately from playback position.
+	// This is used e.g. when returning to the pattern editor during playback.
+	if Assigned(OrderList) then
+		RememberLastEditPosition(
+			CurrentPattern,
+			OrderList.Cursor.Y,
+			Cursor.Row,
+			Cursor.Channel,
+			Ord(Cursor.Column)
+		)
+	else
+		RememberLastEditPosition(
+			CurrentPattern,
+			0,
+			Cursor.Row,
+			Cursor.Channel,
+			Ord(Cursor.Column)
+		);
 end;
 
 procedure TPatternEditor.MessageText(const S: String);

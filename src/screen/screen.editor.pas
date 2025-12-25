@@ -1337,6 +1337,17 @@ begin
 		Offset := Min(Cursor.Y - Height, 127-31);
 
 	Paint;
+
+	// Keep "last edit position" in sync when the order cursor changes.
+	// (F2 should return to where the user last left the track view.)
+	if Assigned(PatternEditor) then
+		RememberLastEditPosition(
+			CurrentPattern,
+			Cursor.Y,
+			PatternEditor.Cursor.Row,
+			PatternEditor.Cursor.Channel,
+			Ord(PatternEditor.Cursor.Column)
+		);
 end;
 
 function TOrderList.MouseDown(Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean;

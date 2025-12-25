@@ -195,10 +195,20 @@ type
 		Order: Byte;
 	end;
 
+	TLastEditPosition = record
+		Valid: Boolean;
+		Pattern: Byte;
+		Order: Byte;
+		Row: Byte;
+		Channel: Byte;
+		Column: Byte; // Ord(EditColumn)
+	end;
+
 var
 	AppPath, DataPath, ConfigPath: String;
 	Locked, FollowPlayback: Boolean;
 	PlaybackStartPos: TPlaybackStartPosition;
+	LastEditPos: TLastEditPosition;
 	Options: TPoroTrackerConfiguration;
 	ConfigManager: TConfigurationManager;
 	TextVals, TextVals3, HexVals: TTextVals;
@@ -387,6 +397,8 @@ const
 var
 	OnLog: procedure (const Msg: AnsiString) of Object;
 
+procedure RememberLastEditPosition(Pattern, Order, Row, Channel, Column: Byte);
+
 
 implementation
 
@@ -402,6 +414,16 @@ uses
     {$ENDIF}
 	ProTracker.Player,
 	CWE.Dialogs;
+
+procedure RememberLastEditPosition(Pattern, Order, Row, Channel, Column: Byte);
+begin
+	LastEditPos.Valid := True;
+	LastEditPos.Pattern := Pattern;
+	LastEditPos.Order := Order;
+	LastEditPos.Row := Row;
+	LastEditPos.Channel := Channel;
+	LastEditPos.Column := Column;
+end;
 
 
 procedure LogDebug(const Msg: AnsiString);
