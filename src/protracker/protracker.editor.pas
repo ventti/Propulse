@@ -2542,6 +2542,26 @@ begin
 		else
 		if WheelDelta < 0 then
 			ScrollPos := Min(ScrollPos + Abs(WheelDelta*ScrollStep), 63 - Height);
+
+		// Remember view offset changes even when the cursor doesn't move (e.g. mouse wheel scrolling).
+		if Assigned(OrderList) then
+			RememberLastEditPosition(
+				CurrentPattern,
+				OrderList.Cursor.Y,
+				Cursor.Row,
+				Cursor.Channel,
+				Ord(Cursor.Column),
+				ScrollPos
+			)
+		else
+			RememberLastEditPosition(
+				CurrentPattern,
+				0,
+				Cursor.Row,
+				Cursor.Channel,
+				Ord(Cursor.Column),
+				ScrollPos
+			);
 	end;
 	Paint;
 	Result := True;

@@ -1021,6 +1021,15 @@ begin
 					CurrentPattern := Module.PlayPos.Pattern;
 					PatternEditor.Cursor.Row := Module.PlayPos.Row;
 					OrderList.Cursor.Y := Module.PlayPos.Order;
+					// Treat this as an explicit user-set position for subsequent F2/F8 restores.
+					RememberLastEditPosition(
+						CurrentPattern,
+						OrderList.Cursor.Y,
+						PatternEditor.Cursor.Row,
+						PatternEditor.Cursor.Channel,
+						Ord(PatternEditor.Cursor.Column),
+						PatternEditor.ScrollPos
+					);
 					PatternEditor.ValidateCursor;
 					Editor.UpdateInfoLabels;
 					if CurrentScreen = Editor then
@@ -1126,15 +1135,31 @@ begin
 				end
 				else
 				begin
-					// F8: restore start position
+					// F8: restore last user-set edit position (before or during playback)
 					if (Module.PlayMode <> PLAY_STOPPED) then
 					begin
 						Module.Stop;
 						PlayTimeCounter := 0;
-						CurrentPattern := PlaybackStartPos.Pattern;
-						PatternEditor.Cursor.Row := PlaybackStartPos.Row;
-						PatternEditor.Cursor.Channel := PlaybackStartPos.Channel;
-						OrderList.Cursor.Y := PlaybackStartPos.Order;
+						if LastEditPos.Valid then
+						begin
+							CurrentPattern := LastEditPos.Pattern;
+							PatternEditor.ScrollPos := LastEditPos.ScrollPos;
+							PatternEditor.Cursor.Row := LastEditPos.Row;
+							PatternEditor.Cursor.Channel := LastEditPos.Channel;
+							if LastEditPos.Column <= Ord(COL_NEXTCHANNEL) then
+								PatternEditor.Cursor.Column := EditColumn(LastEditPos.Column)
+							else
+								PatternEditor.Cursor.Column := COL_NOTE;
+							OrderList.Cursor.Y := LastEditPos.Order;
+						end
+						else
+						begin
+							// Fallback to playback start position if no edit position has been recorded yet
+							CurrentPattern := PlaybackStartPos.Pattern;
+							PatternEditor.Cursor.Row := PlaybackStartPos.Row;
+							PatternEditor.Cursor.Channel := PlaybackStartPos.Channel;
+							OrderList.Cursor.Y := PlaybackStartPos.Order;
+						end;
 						PatternEditor.ValidateCursor;
 						Editor.UpdateInfoLabels;
 						if CurrentScreen = Editor then
