@@ -926,6 +926,20 @@ begin
 
 	InModal := InModalDialog;
 
+	// In file requester dialogs, prioritize text input over global shortcuts
+	// for printable characters (to allow typing filenames)
+	if (CurrentScreen is Screen.FileReq.TFileScreen) then
+	begin
+		// Check if this is a printable character (a-z, A-Z, 0-9, space, punctuation)
+		// and no modifier keys are pressed (except Shift for capitalization)
+		if ((Key >= Ord(' ')) and (Key <= Ord('~'))) and
+		   ((Shift = []) or (Shift = [ssShift])) then
+		begin
+			// Let TextInput handle it instead of processing as a shortcut
+			Exit;
+		end;
+	end;
+
 	// Direct check for Shift-F8 to ensure it's handled correctly
 	if (Key = SDLK_F8) and (ssShift in Shift) and (not InModal) then
 	begin
