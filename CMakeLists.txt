@@ -335,6 +335,10 @@ elseif(TARGET_OS STREQUAL "linux")
     set(BINARY_PERMISSIONS PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 endif()
 
+# create version file from git describe
+
+file(WRITE "${CMAKE_BINARY_DIR}/version.txt" "${GIT_DESCRIBE}")
+
 # Common install rules for binaries and libraries
 # Install binary from build directory
 install(FILES "${CMAKE_BINARY_DIR}/${PACKAGE_BINARY_NAME}"
@@ -368,6 +372,12 @@ install(FILES "${CMAKE_SOURCE_DIR}/license.txt"
     DESTINATION "."
     COMPONENT Runtime
     OPTIONAL
+)
+
+# Install version file
+install(FILES "${CMAKE_BINARY_DIR}/version.txt"
+    DESTINATION "."
+    COMPONENT Runtime
 )
 
 # macOS-specific post-install: Fix dylib paths
