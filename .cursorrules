@@ -4,6 +4,14 @@
 
 - **Don't invent changes other than what's explicitly requested** - Only make changes that are directly asked for. Do not add "improvements", "fixes", or "optimizations" unless explicitly requested.
 
+## Development Principles
+
+Prefer these principles when writing and modifying code:
+
+- **DRY (Don't Repeat Yourself)** - Avoid code duplication. Extract common logic into reusable functions, procedures, or units. If similar code appears in multiple places, refactor it into a shared implementation.
+- **KISS (Keep It Simple, Stupid)** - Prefer simple, straightforward solutions over complex ones. Write code that is easy to understand and maintain. Avoid unnecessary abstractions or over-engineering.
+- **YAGNI (You Aren't Gonna Need It)** - Don't add functionality until it's actually needed. Avoid speculative features, premature optimizations, or "just in case" code. Focus on solving the current problem.
+
 ## Commit Message Conventions
 
 When making commits (especially when the AI agent generates commit messages), follow these rules:
