@@ -640,19 +640,68 @@ begin
 end;
 
 procedure TFileScreen.SelectFile(Filename: String);
-var
-	Y: Integer;
-begin
-	Filename := LowerCase(Filename);
 
-	for Y := 0 to FileList.Items.Count-1 do
+	function SelectInFileList(const Prefix: String): Boolean;
+	var
+		Y: Integer;
 	begin
-		if Pos(Filename, LowerCase(FileList.Items[Y].Captions[0])) = 1 then
+		for Y := 0 to FileList.Items.Count-1 do
 		begin
-			// found match, select it!
-			FileList.Select(Y);
-			FileOrDirSelected(FileList);
-			Exit;
+			if Pos(Prefix, LowerCase(FileList.Items[Y].Captions[0])) = 1 then
+			begin
+				FileList.Select(Y);
+				ActivateControl(FileList);
+				FileOrDirSelected(FileList);
+				Exit(True);
+			end;
+		end;
+		Result := False;
+	end;
+
+	function SelectInDirList(const Prefix: String): Boolean;
+	var
+		Y: Integer;
+		ItemType: Integer;
+	begin
+		for Y := 0 to DirList.Items.Count-1 do
+		begin
+			ItemType := DirList.Items[Y].Data;
+			// Search directories/drives/parent, but not bookmarks.
+			if (ItemType = LISTITEM_DIR) or (ItemType = LISTITEM_DRIVE) or (ItemType = LISTITEM_PARENT) then
+				if Pos(Prefix, LowerCase(DirList.Items[Y].Captions[0])) = 1 then
+				begin
+					DirList.Select(Y);
+					ActivateControl(DirList);
+					FileOrDirSelected(DirList);
+					Exit(True);
+				end;
+		end;
+		Result := False;
+	end;
+
+var
+	Prefix: String;
+begin
+	Prefix := LowerCase(Filename);
+
+	// Prefer searching the currently active list first, then fall back to the other list.
+	// Focus switches to whichever list has a match.
+	if ActiveControl = DirList then
+	begin
+		if not SelectInDirList(Prefix) then
+		begin
+			// No match in directory list, try file list
+			if SelectInFileList(Prefix) then
+				; // FileList already activated in SelectInFileList
+		end;
+	end
+	else
+	begin
+		if not SelectInFileList(Prefix) then
+		begin
+			// No match in file list, try directory list
+			if SelectInDirList(Prefix) then
+				; // DirList already activated in SelectInDirList
 		end;
 	end;
 end;
@@ -1421,7 +1470,12 @@ begin
 		Exit(False);
 
 	Result := True;
-	FileRequester.FileList.TextInput(Key);
+	with TFileScreen(Screen) do
+		if lblSearch <> nil then
+		begin
+			lblSearch.Caption := lblSearch.Caption + LowerCase(Key);
+			SearchTermChanged;
+		end;
 end;
 
 function TDirList.GetPath(Fullpath: Boolean): String;
