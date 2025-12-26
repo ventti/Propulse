@@ -129,3 +129,6 @@ release/
 
 # Generated build info
 src/include/gitdescribe.inc
+
+.dropboxuploader
+.local
