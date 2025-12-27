@@ -1,8 +1,75 @@
-# Cursor Rules for Propulse Tracker
+# Project Instructions
 
 ## General Guidelines
 
 - **Don't invent changes other than what's explicitly requested** - Only make changes that are directly asked for. Do not add "improvements", "fixes", or "optimizations" unless explicitly requested.
+
+## AI Coding Rules
+
+### Prime Directive
+
+Prefer global correctness and maintainability over local optimization.
+When context is missing, choose minimal, conservative changes.
+
+### Scope & Changes
+
+- Make the smallest change possible.
+- Do not mix refactors and behavior changes.
+- Split large or cross-cutting changes into stages.
+- Do not leave partial refactors or TODO shims.
+
+### Architecture & Invariants
+
+- Assume architectural rules exist.
+- Do not cross layers or break invariants.
+- Preserve threading, ownership, error handling, and security rules.
+- If unclear, stop and ask.
+
+### Reuse & Consistency
+
+- Search for and reuse existing code first.
+- Do not introduce parallel implementations.
+- Match existing naming, structure, and patterns exactly.
+- Do not "improve style" unless asked.
+
+### Dependencies & Compatibility
+
+- Do not add dependencies unless explicitly allowed.
+- Assume API/ABI and data formats are stable.
+- Flag any compatibility-impacting changes.
+
+### Testing
+
+- All behavior changes require tests.
+- Tests must encode invariants, not just happy paths.
+- High-risk code requires stronger test coverage.
+
+### Refactoring
+
+- Refactors must be mechanical and behavior-preserving.
+- Complete migrations fully or do not start them.
+
+### Documentation & Review
+
+- Document intent and assumptions, not obvious code.
+- PRs must explain scope, invariants, and risks.
+- Be ready to justify decisions.
+
+### Stop Conditions
+
+Stop and ask if:
+- Architecture or invariants are unclear.
+- Multiple valid designs exist.
+- Changes may affect unseen code.
+
+### Forbidden
+
+- Speculative abstractions
+- Hidden behavior changes
+- Style-only rewrites
+- Guessing system-wide rules
+
+**Principle: Act as a careful maintainer, not a rewriter.**
 
 ## Development Principles
 
@@ -91,6 +158,8 @@ Bad commit messages:
 - Follow the existing commit style in the repository
 
 See `COMMIT_CONVENTIONS.md` for more details.
+
+
 
 ## Playback shortcuts + cursor positioning (investigation pointers)
 
