@@ -33,7 +33,8 @@ type
 		keyToggleChannel1,		keyToggleChannel2,
 		keyToggleChannel3,		keyToggleChannel4,
 		keyMetadataNotes,		keyMetadataNext,
-		keyMetadataPrev
+		keyMetadataPrev,
+		keyScreenHelpLastPos
 	);
 
 	TVideoInfo = record
@@ -987,6 +988,10 @@ begin
 				if not Editor.ShowCommandHelp then
 					Help.Show(CurrentScreen.ID);
 
+		keyScreenHelpLastPos:
+			if not InModal then
+				Help.ShowLastPosition;
+
 		keyScreenPatternEditor:
 			if not InModal then
 			begin
@@ -1882,6 +1887,7 @@ begin
 		Bind(Variant(Integer(keyProgramQuit)), 			'Program.Quit', 			'Ctrl+Q');
 		Bind(Variant(Integer(keyProgramFullscreen)), 		'Program.Fullscreen', 		'Alt+Return');
 		Bind(Variant(Integer(keyScreenHelp)), 			'Screen.Help', 				'F1');
+		Bind(Variant(Integer(keyScreenHelpLastPos)), 		'Screen.Help.LastPos', 		'Shift+F1');
 		Bind(Variant(Integer(keyScreenPatternEditor)), 	'Screen.PatternEditor', 	'F2');
 		Bind(Variant(Integer(keyScreenSamples)), 			'Screen.Samples', 			'F3');
 		Bind(Variant(Integer(keyScreenLoad)), 			'Screen.Load', 				['F9', 'Ctrl+L', 'Ctrl+O']);

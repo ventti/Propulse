@@ -15,21 +15,26 @@ type
 		SearchTerm:	AnsiString;
 		MatchLines:	array of Integer;
 		MatchIndex:	Integer;
+		LastOffset:	Cardinal;
+		LastOffsetValid: Boolean;
 
 		procedure	ClearSearch;
 		procedure	SearchTermChanged;
 		procedure	JumpToMatch(NewIndex: Integer);
 		procedure	NextMatch;
 		procedure	PrevMatch;
+		procedure	RememberPosition;
 	public
 		Memo:		TCWEMemo;
 
 		function 	HelpFileName: String;
 		function 	LoadHelp: Boolean;
 		procedure	Show(Context: AnsiString); reintroduce;
+		procedure	ShowLastPosition;
 
 		function	KeyDown(var Key: Integer; Shift: TShiftState): Boolean; override;
 		function	TextInput(var Key: Char): Boolean; override;
+		function	MouseWheel(Shift: TShiftState; WheelDelta: Integer; P: TPoint): Boolean; override;
 
 		constructor	Create(var Con: TConsole; const sCaption, sID: AnsiString); override;
 	end;
@@ -69,6 +74,8 @@ begin
 	LoadLayout(Self);
 
 	ClearSearch;
+	LastOffset := 0;
+	LastOffsetValid := False;
 	LoadHelp;
 end;
 
@@ -86,11 +93,19 @@ begin
 		lblSearch.SetCaption('');
 end;
 
+procedure THelpScreen.RememberPosition;
+begin
+	if Memo = nil then Exit;
+	LastOffset := Memo.Offset;
+	LastOffsetValid := True;
+end;
+
 procedure THelpScreen.JumpToMatch(NewIndex: Integer);
 begin
 	if (NewIndex < 0) or (NewIndex >= Length(MatchLines)) then Exit;
 	MatchIndex := NewIndex;
 	Memo.ScrollTo(Cardinal(MatchLines[MatchIndex]));
+	RememberPosition;
 end;
 
 procedure THelpScreen.NextMatch;
@@ -192,6 +207,24 @@ begin
 	ClearSearch;
 	if Memo.JumpToSection(Context) < 0 then
 		Memo.ScrollTo(0);
+	RememberPosition;
+	ChangeScreen(TCWEScreen(Self));
+end;
+
+procedure THelpScreen.ShowLastPosition;
+var
+	Fn: String;
+begin
+	Fn := HelpFileName;
+	if (FileExists(Fn)) and (FileAge(Fn) <> Timestamp) then
+		LoadHelp; // reload help file if it's been modified
+
+	ClearSearch;
+	if LastOffsetValid then
+		Memo.ScrollTo(LastOffset)
+	else
+		Memo.ScrollTo(0);
+	RememberPosition;
 	ChangeScreen(TCWEScreen(Self));
 end;
 
@@ -206,22 +239,26 @@ begin
 		if SearchTerm <> '' then
 			SearchTerm := Copy(SearchTerm, 1, Length(SearchTerm)-1);
 		SearchTermChanged;
+		RememberPosition;
 		Exit(True);
 	end;
 
 	if (Key = SDLK_RIGHT) and (SearchTerm <> '') and (Length(MatchLines) > 0) then
 	begin
 		NextMatch;
+		RememberPosition;
 		Exit(True);
 	end;
 
 	if (Key = SDLK_LEFT) and (SearchTerm <> '') and (Length(MatchLines) > 0) then
 	begin
 		PrevMatch;
+		RememberPosition;
 		Exit(True);
 	end;
 
 	Result := inherited KeyDown(Key, Shift);
+	RememberPosition;
 end;
 
 function THelpScreen.TextInput(var Key: Char): Boolean;
@@ -229,7 +266,14 @@ begin
 	// Type-to-search for help content (case-insensitive).
 	SearchTerm := SearchTerm + LowerCase(Key);
 	SearchTermChanged;
+	RememberPosition;
 	Result := True;
+end;
+
+function THelpScreen.MouseWheel(Shift: TShiftState; WheelDelta: Integer; P: TPoint): Boolean;
+begin
+	Result := inherited MouseWheel(Shift, WheelDelta, P);
+	RememberPosition;
 end;
 
 end.
