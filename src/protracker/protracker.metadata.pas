@@ -390,16 +390,17 @@ end;
 
 procedure TSongMetadata.LoadFromFile;
 var
-	Filename: String;
-	Parser: TJSONParser;
+	Filename, S: String;
 	JSONData: TJSONData;
 	RootObj: TJSONObject;
 	EntriesArray: TJSONArray;
 	EntryObj: TJSONObject;
 	Entry: TMetadataEntry;
 	i: Integer;
-	Version: Integer;
 	CreatedStr, UpdatedStr: String;
+	Stream: TFileStream;
+	RetryCount: Integer;
+	LastError: Exception;
 begin
 	Filename := GetMetadataFilename;
 	if (Filename = '') or (not FileExists(Filename)) then
@@ -413,72 +414,118 @@ begin
 	FLock.Enter;
 	try
 		FEntries.Clear;
-		Parser := TJSONParser.Create(TFileStream.Create(Filename, fmOpenRead), True);
-		try
-			JSONData := Parser.Parse;
+		
+		// Retry logic for transient file system errors (EAGAIN on macOS)
+		RetryCount := 0;
+		LastError := nil;
+		Stream := nil;
+		while RetryCount < 5 do
+		begin
 			try
-				// Handle version 1 format with wrapper object
-				if JSONData is TJSONObject then
+				Stream := TFileStream.Create(Filename, fmOpenRead or fmShareDenyNone);
+				Break; // Success, exit retry loop
+			except
+				on E: Exception do
 				begin
-					RootObj := TJSONObject(JSONData);
-					Version := RootObj.Get('version', 0);
-					EntriesArray := RootObj.Get('entries', TJSONArray(nil)) as TJSONArray;
-				end
-				else
-				// Backward compatibility: direct array (old format)
-				if JSONData is TJSONArray then
-				begin
-					EntriesArray := TJSONArray(JSONData);
-					Version := 0;
-				end
-				else
-				begin
-					raise Exception.Create('Invalid JSON format');
+					LastError := E;
+					// Check if it's a transient error (EAGAIN / Resource temporarily unavailable)
+					if (Pos('Resource temporarily unavailable', E.Message) > 0) or
+					   (Pos('temporarily unavailable', E.Message) > 0) or
+					   (E is EFCreateError) then
+					begin
+						Inc(RetryCount);
+						if RetryCount < 5 then
+						begin
+							// Brief delay before retrying (allows file system to settle)
+							// Use a simple loop for cross-platform compatibility
+							// This gives the file system a moment to become available
+							for i := 1 to 1000 * RetryCount do
+								; // Busy wait
+							Continue;
+						end;
+					end;
+					// Not a retryable error, re-raise
+					raise;
 				end;
-
-				if not Assigned(EntriesArray) then
-					Exit;
-
-				for i := 0 to EntriesArray.Count - 1 do
-				begin
-					EntryObj := EntriesArray.Objects[i];
-					if not Assigned(EntryObj) then Continue;
-
-					Entry.ID := EntryObj.Get('id', 0);
-					Entry.Title := EntryObj.Get('title', '');
-					Entry.Body := EntryObj.Get('body', '');
-					Entry.Status := StringToStatus(EntryObj.Get('status', 'open'));
-
-					// Parse timestamps
-					CreatedStr := EntryObj.Get('created_at', '');
-					UpdatedStr := EntryObj.Get('updated_at', '');
-					if CreatedStr <> '' then
-						Entry.CreatedAt := ISO8601ToDate(CreatedStr)
-					else
-						Entry.CreatedAt := Now;
-					if UpdatedStr <> '' then
-						Entry.UpdatedAt := ISO8601ToDate(UpdatedStr)
-					else
-						Entry.UpdatedAt := Entry.CreatedAt;
-
-					// Parse pointer
-					Entry.Pointer := JSONToPointer(EntryObj.Get('pointer', TJSONObject(nil)));
-
-					// Validate entry
-					if ValidateEntry(Entry) then
-						FEntries.Add(Entry)
-					else
-						Log(TEXT_WARNING + Format('Skipped invalid metadata entry ID %d', [Entry.ID]));
-				end;
-
-				// Validate and fix IDs
-				ValidateAndFixIDs;
-				InvalidateCache;
-			finally
-				JSONData.Free;
 			end;
+		end;
+		
+		if Stream = nil then
+		begin
+			if LastError <> nil then
+				raise LastError
+			else
+				raise Exception.Create('Failed to open metadata file after retries');
+		end;
+		
+		// Use GetJSON with string read from stream (non-deprecated API)
+		Stream.Position := 0;
+		SetLength(S, Stream.Size);
+		Stream.ReadBuffer(S[1], Stream.Size);
+		Stream.Free;
+		Stream := nil;
+		
+		JSONData := GetJSON(S);
+		try
+			// Handle version 1 format with wrapper object
+			if JSONData is TJSONObject then
+			begin
+				RootObj := TJSONObject(JSONData);
+				// Version is read but not currently used (for future version checking)
+				RootObj.Get('version', 0);
+				EntriesArray := RootObj.Get('entries', TJSONArray(nil)) as TJSONArray;
+			end
+			else
+			// Backward compatibility: direct array (old format)
+			if JSONData is TJSONArray then
+			begin
+				EntriesArray := TJSONArray(JSONData);
+			end
+			else
+			begin
+				raise Exception.Create('Invalid JSON format');
+			end;
+
+			if not Assigned(EntriesArray) then
+				Exit;
+
+			for i := 0 to EntriesArray.Count - 1 do
+			begin
+				EntryObj := EntriesArray.Objects[i];
+				if not Assigned(EntryObj) then Continue;
+
+				Entry.ID := EntryObj.Get('id', 0);
+				Entry.Title := EntryObj.Get('title', '');
+				Entry.Body := EntryObj.Get('body', '');
+				Entry.Status := StringToStatus(EntryObj.Get('status', 'open'));
+
+				// Parse timestamps
+				CreatedStr := EntryObj.Get('created_at', '');
+				UpdatedStr := EntryObj.Get('updated_at', '');
+				if CreatedStr <> '' then
+					Entry.CreatedAt := ISO8601ToDate(CreatedStr)
+				else
+					Entry.CreatedAt := Now;
+				if UpdatedStr <> '' then
+					Entry.UpdatedAt := ISO8601ToDate(UpdatedStr)
+				else
+					Entry.UpdatedAt := Entry.CreatedAt;
+
+				// Parse pointer
+				Entry.Pointer := JSONToPointer(EntryObj.Get('pointer', TJSONObject(nil)));
+
+				// Validate entry
+				if ValidateEntry(Entry) then
+					FEntries.Add(Entry)
+				else
+					Log(TEXT_WARNING + Format('Skipped invalid metadata entry ID %d', [Entry.ID]));
+			end;
+
+			// Validate and fix IDs
+			ValidateAndFixIDs;
+			InvalidateCache;
 		finally
-			Parser.Free;
+			JSONData.Free;
 		end;
 	finally
 		FLock.Leave;
@@ -487,7 +534,7 @@ end;
 
 procedure TSongMetadata.SaveToFile;
 var
-	Filename: String;
+	Filename, TempFilename: String;
 	RootObj: TJSONObject;
 	EntriesArray: TJSONArray;
 	EntryObj: TJSONObject;
@@ -495,6 +542,9 @@ var
 	i: Integer;
 	Stream: TFileStream;
 	JSONStr: String;
+	Dir: String;
+	RetryCount: Integer;
+	LastError: Exception;
 begin
 	Filename := GetMetadataFilename;
 	if Filename = '' then Exit;
@@ -508,6 +558,11 @@ begin
 				DeleteFile(Filename);
 			Exit;
 		end;
+
+		// Ensure directory exists before creating file
+		Dir := ExtractFilePath(Filename);
+		if (Dir <> '') and (not DirectoryExists(Dir)) then
+			ForceDirectories(Dir);
 
 		RootObj := TJSONObject.Create;
 		try
@@ -531,13 +586,70 @@ begin
 
 			RootObj.Add('entries', EntriesArray);
 
-			Stream := TFileStream.Create(Filename, fmCreate);
-			try
-				JSONStr := RootObj.AsJSON;
-				if Length(JSONStr) > 0 then
-					Stream.WriteBuffer(JSONStr[1], Length(JSONStr));
-			finally
-				Stream.Free;
+			// Use atomic write: write to temp file, then rename
+			// This prevents readers from seeing partially written files
+			TempFilename := Filename + '.tmp';
+			
+			// Retry logic for transient file system errors
+			RetryCount := 0;
+			LastError := nil;
+			while RetryCount < 5 do
+			begin
+				try
+					// Write to temp file
+					Stream := TFileStream.Create(TempFilename, fmCreate);
+					try
+						JSONStr := RootObj.AsJSON;
+						if Length(JSONStr) > 0 then
+							Stream.WriteBuffer(JSONStr[1], Length(JSONStr));
+					finally
+						Stream.Free;
+					end;
+					
+					// Atomic rename: replace target file atomically
+					// On most file systems, this is an atomic operation
+					if FileExists(Filename) then
+						DeleteFile(Filename);
+					RenameFile(TempFilename, Filename);
+					
+					Break; // Success, exit retry loop
+				except
+					on E: Exception do
+					begin
+						LastError := E;
+						// Clean up temp file if it exists
+						if FileExists(TempFilename) then
+							DeleteFile(TempFilename);
+						
+						// Check if it's a transient error (EAGAIN / Resource temporarily unavailable)
+						if (Pos('Resource temporarily unavailable', E.Message) > 0) or
+						   (Pos('temporarily unavailable', E.Message) > 0) or
+						   (E is EFCreateError) or (E is EFOpenError) then
+						begin
+							Inc(RetryCount);
+							if RetryCount < 5 then
+							begin
+								// Brief delay before retrying
+								for i := 1 to 1000 * RetryCount do
+									; // Busy wait
+								Continue;
+							end;
+						end;
+						// Not a retryable error, re-raise
+						raise;
+					end;
+				end;
+			end;
+			
+			if RetryCount >= 5 then
+			begin
+				if LastError <> nil then
+				begin
+					Log(TEXT_FAILURE + Format('Failed to save metadata file "%s" after retries: %s', [Filename, LastError.Message]));
+					raise LastError;
+				end
+				else
+					raise Exception.Create('Failed to save metadata file after retries');
 			end;
 		finally
 			RootObj.Free;
