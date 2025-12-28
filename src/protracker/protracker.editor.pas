@@ -1489,7 +1489,7 @@ end;}
 //
 function TPatternEditor.KeyDown;
 var
-	i, n, o, resumeRow: Integer;
+	i, n, o: Integer;
 	prevColumn: EditColumn;
 	r: TRect;
 	Sht: TShiftState;
@@ -1520,71 +1520,33 @@ begin
 	begin
 		PlaybackStartPos.Pattern := CurrentPattern;
 		PlaybackStartPos.Channel := Cursor.Channel;
-		o := -1;
-		resumeRow := Cursor.Row; // Default to current cursor row
 		
-		// Shift-F7: use stored order position but start from beginning of pattern
+		// Shift-F7: start from beginning of pattern at current order
 		if ssShift in Shift then
 		begin
-			// Check if PlaybackStartPos.Order is valid
-			if (PlaybackStartPos.Order < Module.Info.OrderCount) then
+			if Assigned(OrderList) and
+			   (OrderList.Cursor.Y < Module.Info.OrderCount) then
 			begin
-				o := PlaybackStartPos.Order;
-				resumeRow := 0; // Start from beginning of pattern
+				PlaybackStartPos.Order := OrderList.Cursor.Y;
+				PlaybackStartPos.Row := 0;
+				Module.Play(OrderList.Cursor.Y, 0);
 			end
 			else
-			begin
-				// No stored position, use current cursor position
-				if Assigned(OrderList) and
-				   (OrderList.Cursor.Y < Module.Info.OrderCount) then
-				begin
-					o := OrderList.Cursor.Y;
-					resumeRow := 0;
-				end;
-			end;
+				Module.PlayPattern(CurrentPattern, 0);
 		end
 		else
 		begin
-			// F7: use stored order position with stored row position
-			// First check if PlaybackStartPos.Order is valid and matches current pattern
-			// (this remembers the last played position in the order list)
-			if (PlaybackStartPos.Order < Module.Info.OrderCount) and
-			   (Module.OrderList[PlaybackStartPos.Order] = CurrentPattern) then
+			// F7: always use current cursor position
+			if Assigned(OrderList) and
+			   (OrderList.Cursor.Y < Module.Info.OrderCount) then
 			begin
-				o := PlaybackStartPos.Order;
-				// Use stored row position when resuming from remembered position
-				resumeRow := PlaybackStartPos.Row;
+				PlaybackStartPos.Order := OrderList.Cursor.Y;
+				PlaybackStartPos.Row := Cursor.Row;
+				Module.Play(OrderList.Cursor.Y, Cursor.Row);
 			end
 			else
-			begin
-				// Otherwise, check if current cursor position matches
-				if Assigned(OrderList) and
-				   (OrderList.Cursor.Y < Module.Info.OrderCount) and
-				   (Module.OrderList[OrderList.Cursor.Y] = CurrentPattern) then
-				begin
-					o := OrderList.Cursor.Y;
-					PlaybackStartPos.Order := o;
-					PlaybackStartPos.Row := Cursor.Row;
-				end
-				else
-				begin
-					// Fallback: search for first occurrence
-					for i := 0 to Module.Info.OrderCount-1 do
-						if Module.OrderList[i] = CurrentPattern then
-						begin
-							o := i;
-							PlaybackStartPos.Order := o;
-							PlaybackStartPos.Row := Cursor.Row;
-							Break;
-						end;
-				end;
-			end;
+				Module.PlayPattern(CurrentPattern, Cursor.Row);
 		end;
-		
-		if o >= 0 then // continue from orderlist
-			Module.Play(o, resumeRow)
-		else
-			Module.PlayPattern(CurrentPattern, resumeRow);
 		Exit(True);
 	end;
 

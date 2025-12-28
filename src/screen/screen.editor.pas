@@ -1168,38 +1168,18 @@ begin
 	begin
 		PlaybackStartPos.Pattern := CurrentPattern;
 		PlaybackStartPos.Channel := PatternEditor.Cursor.Channel;
-		// Shift-F7: use stored order position but start from beginning of pattern
+		PlaybackStartPos.Order := Cursor.Y;
+		// Shift-F7: start from beginning of pattern at current order
 		if ssShift in Shift then
 		begin
-			if (PlaybackStartPos.Order < Module.Info.OrderCount) then
-			begin
-				PlaybackStartPos.Row := 0;
-				Module.Play(PlaybackStartPos.Order, 0);
-			end
-			else
-			begin
-				// No stored position, use current cursor position
-				PlaybackStartPos.Order := Cursor.Y;
-				PlaybackStartPos.Row := 0;
-				Module.Play(Cursor.Y, 0);
-			end;
+			PlaybackStartPos.Row := 0;
+			Module.Play(Cursor.Y, 0);
 		end
 		else
 		begin
-			// F7: use stored order position with stored row position, or current position
-			if (PlaybackStartPos.Order < Module.Info.OrderCount) and
-			   (PlaybackStartPos.Order = Cursor.Y) then
-			begin
-				// Use stored position if it matches current order
-				Module.Play(PlaybackStartPos.Order, PlaybackStartPos.Row);
-			end
-			else
-			begin
-				// Use current cursor position
-				PlaybackStartPos.Row := PatternEditor.Cursor.Row;
-				PlaybackStartPos.Order := Cursor.Y;
-				Module.Play(Cursor.Y, PatternEditor.Cursor.Row);
-			end;
+			// F7: always use current cursor position
+			PlaybackStartPos.Row := PatternEditor.Cursor.Row;
+			Module.Play(Cursor.Y, PatternEditor.Cursor.Row);
 		end;
 		Exit;
 	end;
