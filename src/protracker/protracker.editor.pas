@@ -930,6 +930,11 @@ var
 	Change: TUndoChange;
 	i: Integer;
 begin
+	// Guard against out-of-bounds insert requests (e.g. block-paste near end of pattern).
+	// Without this, (64 - Row) can go negative and trigger a range check error.
+	if (Row > 63) then Exit;
+	if (not WholePattern) and (Channel >= AMOUNT_CHANNELS) then Exit;
+
 	if WholePattern then
 	begin
 		ch1 := 0;
