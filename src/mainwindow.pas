@@ -123,7 +123,6 @@ implementation
 
 uses
 	{$IFDEF WINDOWS}Windows,{$ENDIF}
-	{$IFDEF LAZARUS}FileUtil,{$ENDIF}
 	BuildInfo, Math,
 	{$IFDEF BASS}BASS,{$ENDIF}
 	{$IFDEF SOXR}soxr,{$ENDIF}
@@ -1794,9 +1793,6 @@ begin
 	// Init application directories
 	// Do this first before any other initialization that might access files
 	try
-		{$IFDEF LAZARUS}
-		AppPath := IncludeTrailingPathDelimiter(ProgramDirectory);
-		{$ELSE}
 		// Expand to absolute path to handle relative paths like ./Propulse-macos-arm64
 		// This ensures we get the correct path regardless of current working directory
 		AppPath := ExtractFilePath(ExpandFileName(ParamStr(0)));
@@ -1808,7 +1804,6 @@ begin
 			Halt(1);
 		end;
 		AppPath := IncludeTrailingPathDelimiter(AppPath);
-		{$ENDIF}
 		
 		// Require data and docs directories (or symlinks) under AppPath
 		DataPath := AppPath + 'data/';

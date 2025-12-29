@@ -90,12 +90,8 @@ begin
 	
 	// Check for required directories BEFORE any initialization that might access files
 	// This prevents crashes when running from different directories
-	{$IFDEF LAZARUS}
-	ExeDir := IncludeTrailingPathDelimiter(ProgramDirectory);
-	{$ELSE}
 	ExePath := ExpandFileName(ParamStr(0));
 	ExeDir := IncludeTrailingPathDelimiter(ExtractFilePath(ExePath));
-	{$ENDIF}
 	
 	DataDir := ExeDir + 'data';
 	DocsDir := ExeDir + 'docs';

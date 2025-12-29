@@ -176,7 +176,7 @@ implementation
 
 uses
 	SDL2,
-    Generics.Defaults, FileUtils, {$IFDEF LAZARUS}FileUtil,{$ENDIF}
+    Generics.Defaults, FileUtils,
 	{$IFDEF WINDOWS}Windows,{$ENDIF}
 	Layout, CWE.MainMenu,
 	Dialog.ValueQuery,
@@ -490,11 +490,7 @@ begin
 			ModalDialog.ShowMessage('Copy Error', 'Destination file already exists!')
 		else
 		begin
-			{$IFDEF LAZARUS}
-			if FileUtil.CopyFile(Filename, DestFile, True) then
-			{$ELSE}
 			if FileUtils.CopyFile(Filename, DestFile, True) then
-			{$ENDIF}
 			begin
 				if MoveFile then
 				begin
