@@ -54,6 +54,7 @@ When context is missing, choose minimal, conservative changes.
 - Document intent and assumptions, not obvious code.
 - PRs must explain scope, invariants, and risks.
 - Be ready to justify decisions.
+- When mouse actions or keyboard shortcuts are added/removed/changed, update `data/help.txt` accordingly. Ensure the help text is up to date and does not contradict existing related functionality.
 
 ### Stop Conditions
 
