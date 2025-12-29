@@ -203,8 +203,65 @@ end;
 
 function TEditorScreen.LabelClicked(Sender: TCWEControl;
 	Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean;
+var
+	Delta, i: Integer;
 begin
 	Result := False;
+	if Sender = lblPattern then
+	begin
+		// Left click increments, right click decrements. Always handle the click to
+		// avoid falling back to the global context menu on right-click.
+		Result := True;
+		case Button of
+			mbLeft:
+				if ssCtrl in GetShiftState then
+					Delta := -1
+				else
+					Delta := 1;
+			mbRight: Delta := -1;
+		else
+			Exit;
+		end;
+		i := CurrentPattern + Delta;
+		if (i >= 0) and (i < MAX_PATTERNS) then
+		begin
+			FollowPlayback := False;
+			SelectPattern(i);
+		end;
+	end
+	else
+	if Sender = lblOrder then
+	begin
+		// Left click increments, right click (and Ctrl+Left) decrements.
+		// Always handle the click to avoid falling back to the global context menu on right-click.
+		Result := True;
+		case Button of
+			mbLeft:
+				if ssCtrl in GetShiftState then
+					Delta := -1
+				else
+					Delta := 1;
+			mbRight: Delta := -1;
+		else
+			Exit;
+		end;
+
+		// When playing the song, reuse the existing order navigation behavior.
+		if Module.PlayMode = PLAY_SONG then
+		begin
+			if Delta < 0 then
+				SelectPattern(SELECT_PREV)
+			else
+				SelectPattern(SELECT_NEXT);
+		end
+		else
+		begin
+			i := Integer(Module.PlayPos.Order) + Delta;
+			if (i >= 0) and (i < Module.Info.OrderCount) then
+				SeekTo(Byte(i), PatternEditor.Cursor.Row);
+		end;
+	end
+	else
 	if Sender = lblTempo then
 	begin
 		Result := True;
@@ -292,10 +349,12 @@ begin
 	lblPattern := TCWESunkenLabel.Create(Self, '00/01', 'PatternNum',
 		Bounds(i, 7, 5, 1), True);
 	EnableMouseOn(lblPattern);
+	lblPattern.OnMouseDown := LabelClicked;
 
 	lblOrder := TCWESunkenLabel.Create(Self, '000/000', 'OrderNum',
 		Bounds(i + 13, 7, 7, 1), True);
 	EnableMouseOn(lblOrder);
+	lblOrder.OnMouseDown := LabelClicked;
 
 	i := 32;
 {	AddControl(TCWELabel, 'Sample', '', Bounds(i, 3, 6, 1));
