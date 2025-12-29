@@ -16,7 +16,6 @@
 <c><f9>Last modified: 2025-12-29
 
 <h2>Global Keys:
-
   Escape            Context menu
   F1                Help
   Shift-F1          Help (reopen at last position)
@@ -29,7 +28,7 @@
   Shift-F7          Play from stored order position, beginning of pattern
   F8                Stop playback and restore cursor to start position
   Shift-F8          Stop playback and keep cursor at current position
-  g                 Set cursor to current playback position (do not stop playback)
+  g                 Set cursor to current playback position
   F9                Load module (also Ctrl-L, Ctrl-O)
   F10               Save module (also Ctrl-W)
   F11               Orderlist
@@ -81,12 +80,6 @@
 
 <#Editor><h1>Pattern Edit
 
-<h2>Mouse (Editor screen):
-
-  Pattern number: Left mouse = next pattern, Right mouse (or Ctrl-Left) = previous pattern
-  Order number:   Left mouse = next order,   Right mouse (or Ctrl-Left) = previous order
-                 (updates the active pattern/view to the pattern on that order)
-
 <h2>Effects:
 
  PT   IT   Description
@@ -133,7 +126,9 @@
   2*F1               Show full help for command under cursor
 
     Numpad +,-       Next/Previous pattern  (*)
-;   Ctrl +,-         Next/Previous order's pattern  (*)
+                     (also Mouse left/right on Pattern number)
+;    Ctrl +,-         Next/Previous order's pattern  (*)
+;                     (also Mouse left/right on Pattern number)
     0-9              Change octave/volume/instrument
     0-9, A-F         Change effect value
     A-F              Change effect
@@ -409,7 +404,7 @@
  Optionally hides the trailing zeroes in empty effect slots.
 
  <h3><#Editor.NoteB3AsInvalid>Consider note B-3 as invalid:
- Notes played at B-3 may sound odd on real Amigas; while Propulse Tracker does
+ Notes played at B-3 may sound odd on real Amiga; while Propulse Tracker does
  not emulate this behavior (nor does any other PC replayer that I know of),
  you can at least choose to colorize the notes differently.
 
