@@ -561,8 +561,7 @@ function TSampleView.MouseDownEvent(Sender: TCWEControl;
 
 begin
 	inherited;
-	if (not WantMouse) or (ReadOnly) then
-		Exit(False);
+	if (not WantMouse) or (ReadOnly) then Exit(False);
 
 	Result := True;
 

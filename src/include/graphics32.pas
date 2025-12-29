@@ -704,13 +704,7 @@ begin
 		end;
 	finally
 		// not super sure if this is necessary
-		// EMMS is Intel MMX-specific, skip on ARM64
-		{$IFDEF TARGET_x86}
-		asm
-			EMMS;
-		end;
-		{$ENDIF}
-		{$IFDEF TARGET_x64}
+		{$IF DEFINED(TARGET_x86) OR DEFINED(TARGET_x64)}
 		asm
 			EMMS;
 		end;
