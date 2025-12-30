@@ -13,7 +13,7 @@
 
 <#Main><h1>Propulse Tracker Help
 
-<c><f9>Last modified: 2025-12-29
+<c><f9>Last modified: 2025-12-30
 
 <h2>Global Keys:
   Escape            Context menu

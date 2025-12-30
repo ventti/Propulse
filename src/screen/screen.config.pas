@@ -17,6 +17,12 @@ const
 type
 	TCWEConfigList = class(TCWETwoColumnList)
 	private
+		FTypedDigits: AnsiString;
+		FTypedDigitsItemIndex: Integer;
+
+		procedure	ResetTypedDigits;
+		function	ApplyTypedDigitsToItem(CI: TConfigItem; LI: TCWEListItem): Boolean;
+
 		procedure 	Dialog_ConfigItemList_Generic;
 		procedure 	ConfigItemDialogCallback(ID: Word; Button: TDialogButton;
 					Tag: Integer; Data: Variant; Dlg: TCWEDialog);
@@ -24,6 +30,7 @@ type
 		ConfigManager: TConfigurationManager;
 
 		procedure 	ItemFromConfig(var LI: TCWEListItem);
+		function	TextInput(var Key: Char): Boolean; override;
 
 		constructor	Create(Owner: TCWEControl;
 					const sCaption, sID: AnsiString; const Bounds: TRect;
@@ -864,6 +871,61 @@ begin
 	end;
 end;
 
+procedure TCWEConfigList.ResetTypedDigits;
+begin
+	FTypedDigits := '';
+	FTypedDigitsItemIndex := -1;
+end;
+
+function TCWEConfigList.ApplyTypedDigitsToItem(CI: TConfigItem; LI: TCWEListItem): Boolean;
+var
+	V: Integer;
+begin
+	Result := False;
+	if (CI = nil) or (LI = nil) then Exit;
+
+	// only numeric items support direct typing
+	if not (CI is TConfigItemInteger) and not (CI is TConfigItemByte) then Exit;
+
+	V := StrToIntDef(FTypedDigits, 0);
+
+	// clamp to bounds
+	if V < CI.Min then
+		V := CI.Min
+	else
+	if V > CI.Max then
+		V := CI.Max;
+
+	CI.SetValue(V);
+	ItemFromConfig(LI);
+	Paint;
+	if Assigned(CI.Callback) then CI.Callback;
+	Result := True;
+end;
+
+function TCWEConfigList.TextInput(var Key: Char): Boolean;
+var
+	CI: TConfigItem;
+	LI: TCWEListItem;
+begin
+	Result := False;
+	if (Ord(Key) < Ord('0')) or (Ord(Key) > Ord('9')) then Exit;
+	if not InRange(ItemIndex, 0, Items.Count-1) then Exit;
+
+	LI := Items[ItemIndex];
+	CI := TConfigItem(LI.ObjData);
+	if CI = nil then Exit;
+
+	if (FTypedDigitsItemIndex <> ItemIndex) then
+	begin
+		FTypedDigits := '';
+		FTypedDigitsItemIndex := ItemIndex;
+	end;
+
+	FTypedDigits := FTypedDigits + Key;
+	Result := ApplyTypedDigitsToItem(CI, LI);
+end;
+
 function TCWEConfigList.KeyDown(var Key: Integer; Shift: TShiftState): Boolean;
 var
 	Sc: ControlKeyNames;
@@ -880,10 +942,26 @@ begin
 	Sc := ControlKeyNames(Shortcuts.Find(ControlKeys, Key, []));
 	case Sc of
 
+		ctrlkeyUP, ctrlkeyDOWN, ctrlkeyHOME, ctrlkeyEND, ctrlkeyPGUP, ctrlkeyPGDN:
+			ResetTypedDigits;
+
+		ctrlkeyBACKSPACE:
+		begin
+			if (CI <> nil) and (LI <> nil) and
+				(FTypedDigitsItemIndex = ItemIndex) and (FTypedDigits <> '') and
+				((CI is TConfigItemInteger) or (CI is TConfigItemByte)) then
+			begin
+				Delete(FTypedDigits, Length(FTypedDigits), 1);
+				Result := ApplyTypedDigitsToItem(CI, LI);
+				Exit(Result);
+			end;
+		end;
+
 		ctrlkeyLEFT, ctrlkeyRIGHT,
 		ctrlkeyPLUS, ctrlkeyMINUS:
 		begin
 			if CI = nil then Exit;
+			ResetTypedDigits;
 			Modifier := 1;
 
 			if Sc in [ctrlkeyPLUS, ctrlkeyMINUS] then
@@ -908,6 +986,7 @@ begin
 		// choose config item value from list
 		ctrlkeyRETURN:
 		begin
+			ResetTypedDigits;
 			if Assigned(ConfigScreen) then
 				ConfigScreen.Dialog_ConfigItemList
 			else
