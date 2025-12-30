@@ -16,7 +16,7 @@ uses
 implementation
 
 uses
-	StrUtils, DateUtils, Generics.Collections,
+	StrUtils, Generics.Collections,
 	CWE.Widgets.Text,
 	ProTracker.Metadata, ProTracker.Player, ProTracker.Editor,
 	Screen.Editor,
