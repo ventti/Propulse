@@ -132,3 +132,6 @@ src/include/gitdescribe.inc
 
 .dropboxuploader
 .local
+# dynamic generated files
+CHANGELOG.txt
+version-old.txt
