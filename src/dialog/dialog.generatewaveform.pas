@@ -7,14 +7,15 @@ interface
 
 uses
 	Types, Classes,
-	CWE.Core, CWE.Dialogs,
-	SampleEditor;
+	CWE.Core, CWE.Dialogs;
 
 
 type
 	TGenerateWaveformSettings = class
 	public
-		Waveform:	TWavetype;
+		// Stored as ordinal so this unit does not need a hard interface dependency
+		// on SampleEditor (avoids circular unit references that can trigger FPC ICEs).
+		Waveform:	Byte;
 		Length:		Integer;		// length in samples
 		SampleNote: Byte;
 		DestNote:	Byte;
@@ -30,6 +31,7 @@ type
 implementation
 
 uses
+	SampleEditor,
 	Screen.Config,
 	ProTracker.Util;
 
@@ -38,14 +40,28 @@ var
 
 procedure TGenerateWaveformSettings.DialogCallback(ID: Word; Button: TDialogButton;
 	Tag: Integer; Data: Variant; Dlg: TCWEDialog);
+var
+	DestIdx: Integer;
+	SampleHz: Cardinal;
+	DestFreq: Single;
 begin
 	if Dlg <> nil then Exit;
 
 	if Button = btnOK then
-		with GenerateWaveformSettings do
-		SampleEdit.GenerateAudio(Waveform, Length,
-			PeriodToHz(PeriodTable[SampleNote]),
-			NoteHz[DestOctave * 12 + DestNote]);
+	begin
+		// Avoid FPC internal errors by computing array indices before the call
+		DestIdx := Integer(DestOctave) * 12 + Integer(DestNote);
+		if DestIdx < 0 then
+			DestIdx := 0
+		else
+		if DestIdx > 107 then
+			DestIdx := 107;
+
+		SampleHz := PeriodToHz(PeriodTable[SampleNote]);
+		DestFreq := NoteHz[DestIdx];
+
+		SampleEdit.GenerateAudio(TWavetype(Waveform), Length, SampleHz, DestFreq);
+	end;
 end;
 
 procedure Dialog_GenerateWaveform;
@@ -74,7 +90,7 @@ begin
 		Sect := 'Gen';
 
 		ConfigManager.AddByte(Sect, '',
-			@GenerateWaveformSettings.Waveform, Ord(GenerateWaveformSettings.Waveform)).
+			@GenerateWaveformSettings.Waveform, GenerateWaveformSettings.Waveform).
 			SetInfo('Waveform', Ord(WAVE_SILENCE), Ord(WAVE_NOISE),
 			['Silence', 'Sine', 'Square', 'Saw', 'Triangle', 'Noise']);
 		ConfigManager.AddInteger(Sect, '',
@@ -108,7 +124,7 @@ initialization
 
 	with GenerateWaveformSettings do
 	begin
-		Waveform   := WAVE_SILENCE;
+		Waveform   := Ord(WAVE_SILENCE);
 		Length     := 1024;
 		SampleNote := 24; // C-3
 		DestNote   := 0;
