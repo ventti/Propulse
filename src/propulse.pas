@@ -25,7 +25,8 @@ program Propulse;
 uses
 	{$IFDEF UNIX} cthreads, {$ENDIF}
 	Classes, SysUtils,
-	MainWindow, Screen.Log;
+	MainWindow, Screen.Log,
+	CommandLine;
 
 	{$IFDEF UNIX}
 	// on Unix we need to initialize the threading system before
@@ -87,6 +88,10 @@ begin
 	// Install custom exception handler before anything else
 	// This will catch all unhandled exceptions
 	ExceptProc := @CustomExceptionHandler;
+
+	// Handle command-line arguments that should exit immediately (-h/--help, -v/--version)
+	// and collect any temporary settings overrides (--set) for later application.
+	ParseCommandLine;
 	
 	// Check for required directories BEFORE any initialization that might access files
 	// This prevents crashes when running from different directories

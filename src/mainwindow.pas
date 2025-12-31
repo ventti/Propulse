@@ -126,6 +126,7 @@ uses
 	BuildInfo, Math,
 	{$IFDEF BASS}BASS,{$ENDIF}
 	{$IFDEF SOXR}soxr,{$ENDIF}
+	CommandLine,
 	ProTracker.Messaging, ProTracker.Import,
 	Screen.Editor, Screen.Samples, Screen.FileReq, Screen.FileReqSample,
 	Screen.Log, Screen.Help, Screen.Config, Screen.Splash,
@@ -1778,6 +1779,7 @@ begin
 	LogIfDebug('Loading configuration...');
 
 	Cfg.Load;
+	ApplySettingsOverrides(Cfg);
 end;
 
 constructor TWindow.Create;
@@ -2135,6 +2137,13 @@ begin
     if Warnings then
 		ChangeScreen(TCWEScreen(LogScreen))
 	else
+	if CommandLine.GetRequestedModuleFilename <> '' then
+	begin
+		// Load module specified on the command line.
+		// (File existence is validated before startup in CommandLine.ParseCommandLine)
+		DoLoadModule(CommandLine.GetRequestedModuleFilename);
+	end
+	else
 	if Options.Display.ShowSplashScreen then
 		ChangeScreen(TCWEScreen(SplashScreen))
 	else
@@ -2166,6 +2175,7 @@ begin
 
 		if ConfigManager <> nil then
 		begin
+			RestoreSettingsOverrides(ConfigManager);
 			ConfigManager.Save;
 			ConfigManager.Free;
 		end;
