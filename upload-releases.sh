@@ -6,8 +6,6 @@ PROJECT_NAME="Propulse-EXT"
 UPLOADER="${CI_PROJECT_DIR}/tools/scripts/dropbox_uploader.sh"
 UPLOADER_OPTS=(-f "${CI_PROJECT_DIR}/.dropboxuploader")
 
-git log --pretty=format:'
-
 for file in "$CI_PROJECT_DIR"/release/Propulse-*.zip; do
     filename=$(basename "${file}")
     zip_root=$(zipinfo -1 "${file}" 2>/dev/null | head -1 | cut -d/ -f1 || true)
