@@ -440,6 +440,26 @@ begin
 			Log(TEXT_WARNING + 'Instrument definitions are unsupported.');
 	end;
 
+	ModFile.Read16; // Special: Bit 0: On = song message attached
+	
+	// Read initial tempo and speed from header
+	ModFile.SeekTo($32);
+	Conversion.Info.OrigSpeed := ModFile.Read8; // Initial Speed (byte at 0x32)
+	Conversion.Info.OrigTempo := ModFile.Read8; // Initial Tempo (byte at 0x33)
+
+	// Set module default speed and tempo directly from file header
+	// Don't insert tempo effects into pattern
+	if not SamplesOnly then
+	begin
+		Module.DefaultSpeed := Conversion.Info.OrigSpeed;
+		Module.DefaultTempo := Conversion.Info.OrigTempo;
+		Module.Info.Speed := Conversion.Info.OrigSpeed;
+		Module.Info.BPM := Conversion.Info.OrigTempo;
+		Module.CurrentSpeed := Conversion.Info.OrigSpeed;
+		Module.SetTempo(Conversion.Info.OrigTempo);
+		Conversion.Want.InsertTempo := False;
+	end;
+
 	// read orderlist
 	//
 	for i := 0 to 127 do
@@ -635,10 +655,6 @@ begin
 
 		end; // pattern unpacking
 	end;
-
-	ModFile.SeekTo($32);
-	Conversion.Info.OrigTempo := ModFile.Read8;
-	Conversion.Info.OrigSpeed := ModFile.Read8;
 
 	CountChannels;
 end;

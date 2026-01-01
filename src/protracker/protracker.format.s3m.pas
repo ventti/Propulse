@@ -326,6 +326,23 @@ begin
 	if Byte(ModFile.Read16) <> 2 then // Ffv: File format version
 		Log(TEXT_WARNING + '');
 
+	ModFile.SeekTo($31);
+	Conversion.Info.OrigSpeed := ModFile.Read8; // Initial Speed (byte at 0x31)
+	Conversion.Info.OrigTempo := ModFile.Read8; // Initial Tempo (byte at 0x32)
+	
+	// Set module default speed and tempo directly from file header
+	// Don't insert tempo effects into pattern
+	if not SamplesOnly then
+	begin
+		Module.DefaultSpeed := Conversion.Info.OrigSpeed;
+		Module.DefaultTempo := Conversion.Info.OrigTempo;
+		Module.Info.Speed := Conversion.Info.OrigSpeed;
+		Module.Info.BPM := Conversion.Info.OrigTempo;
+		Module.CurrentSpeed := Conversion.Info.OrigSpeed;
+		Module.SetTempo(Conversion.Info.OrigTempo);
+		Conversion.Want.InsertTempo := False;
+	end;
+	
 	// read orderlist
 	//
 	ModFile.SeekTo($60);
@@ -444,10 +461,6 @@ begin
 		end; // pattern unpacking
 
 	end;
-
-	ModFile.SeekTo($31);
-	Conversion.Info.OrigTempo := ModFile.Read8;
-	Conversion.Info.OrigSpeed := ModFile.Read8;
 
 	CountChannels;
 end;
