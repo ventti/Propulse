@@ -507,11 +507,15 @@ begin
 			BASS_ChannelPlay(Stream, True);
 		{$ENDIF}
 
-		Module.PlayPos.Order := 0;
-		CurrentPattern := Module.OrderList[0];
-		CurrentSample := 1;
-		Editor.Reset;
-		Module.SetModified(False, True);
+	Module.PlayPos.Order := 0;
+	if Module.Info.OrderCount > 0 then
+		CurrentPattern := Module.OrderList[0]
+	else
+		CurrentPattern := 0;
+	CurrentSample := 1;
+	LastEditPos.Valid := False;
+	Editor.Reset;
+	Module.SetModified(False, True);
 
 		ChangeScreen(TCWEScreen(Editor));
 

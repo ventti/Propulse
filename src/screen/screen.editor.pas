@@ -87,6 +87,7 @@ type
 					DirDown: Boolean; P: TPoint): Boolean;
 		function 	ScopeClicked(Sender: TCWEControl; Button: TMouseButton;
 					X, Y: Integer; P: TPoint): Boolean;
+		function 	FindNearestPatternInOrderList(Pattern: Byte; NearOrder: Byte): Integer;
 	public
 		lblAmp,
 		lblMessage,
@@ -822,9 +823,34 @@ begin
 	UpdateInfoLabels(True);
 end;
 
+// Find the nearest occurrence of a pattern in the order list
+// Returns order position, or -1 if not found
+function TEditorScreen.FindNearestPatternInOrderList(Pattern: Byte; NearOrder: Byte): Integer;
+var
+	i, Distance, MinDistance: Integer;
+begin
+	Result := -1;
+	MinDistance := MaxInt;
+	
+	// Search entire order list
+	for i := 0 to Module.Info.OrderCount - 1 do
+	begin
+		if Module.OrderList[i] = Pattern then
+		begin
+			Distance := Abs(i - Integer(NearOrder));
+			if Distance < MinDistance then
+			begin
+				MinDistance := Distance;
+				Result := i;
+			end;
+		end;
+	end;
+end;
+
 procedure TEditorScreen.SelectPattern(i: Integer);
 var
 	Evt: TModuleEvent;
+	OrderPos: Integer;
 begin
 	Evt := Module.OnPlayModeChange;
 	Module.OnPlayModeChange := nil;
@@ -846,12 +872,22 @@ begin
 				OrderList.Paint;
 			end
 			else
-			if CurrentPattern > 0 then
 			begin
-				if 	(Module.Info.PatternCount = CurrentPattern) and
-					(Module.IsPatternEmpty(CurrentPattern)) then
-						Module.CountUsedPatterns;
-				Dec(CurrentPattern);
+				// Decrement pattern number
+				if CurrentPattern > 0 then
+				begin
+					if 	(Module.Info.PatternCount = CurrentPattern) and
+						(Module.IsPatternEmpty(CurrentPattern)) then
+							Module.CountUsedPatterns;
+					Dec(CurrentPattern);
+					// Update order list cursor to nearest occurrence of new pattern
+					if Module.Info.OrderCount > 0 then
+					begin
+						OrderPos := FindNearestPatternInOrderList(CurrentPattern, OrderList.Cursor.Y);
+						if OrderPos >= 0 then
+							OrderList.Cursor.Y := OrderPos;
+					end;
+				end;
 			end;
 			UpdateInfoLabels;
 		end;
@@ -861,17 +897,35 @@ begin
 			if FollowPlayback then
 				Module.NextPosition(True)
 			else
-			if CurrentPattern < MAX_PATTERNS-1 then
 			begin
-				Inc(CurrentPattern);
-				UpdateInfoLabels;
+				// Increment pattern number
+				if CurrentPattern < MAX_PATTERNS-1 then
+				begin
+					Inc(CurrentPattern);
+					// Update order list cursor to nearest occurrence of new pattern
+					if Module.Info.OrderCount > 0 then
+					begin
+						OrderPos := FindNearestPatternInOrderList(CurrentPattern, OrderList.Cursor.Y);
+						if OrderPos >= 0 then
+							OrderList.Cursor.Y := OrderPos;
+					end;
+				end;
 			end;
+			UpdateInfoLabels;
 		end;
 
 	else
 		if (i >= 0) and (i < 100) then
 		begin
 			CurrentPattern := i;
+			// Update order list cursor to nearest occurrence of this pattern
+			if Module.Info.OrderCount > 0 then
+			begin
+				OrderPos := FindNearestPatternInOrderList(CurrentPattern, OrderList.Cursor.Y);
+				if OrderPos >= 0 then
+					OrderList.Cursor.Y := OrderPos;
+				// If pattern not in order list, leave cursor unchanged
+			end;
 			UpdateInfoLabels;
 		end;
 	end;
@@ -879,7 +933,10 @@ begin
 	Module.OnPlayModeChange := Evt;
 	PatternEditor.ValidateCursor;
 	if Active then
+	begin
 		PatternEditor.Paint;
+		OrderList.Paint;
+	end;
 end;
 
 procedure TEditorScreen.SeekTo(Order, Row: Byte);
@@ -1232,13 +1289,19 @@ begin
 		if ssShift in Shift then
 		begin
 			PlaybackStartPos.Row := 0;
-			Module.Play(Cursor.Y, 0);
+			if (Cursor.Y < Module.Info.OrderCount) then
+				Module.Play(Cursor.Y, 0)
+			else
+				Module.PlayPattern(CurrentPattern, 0);
 		end
 		else
 		begin
 			// F7: always use current cursor position
 			PlaybackStartPos.Row := PatternEditor.Cursor.Row;
-			Module.Play(Cursor.Y, PatternEditor.Cursor.Row);
+			if (Cursor.Y < Module.Info.OrderCount) then
+				Module.Play(Cursor.Y, PatternEditor.Cursor.Row)
+			else
+				Module.PlayPattern(CurrentPattern, PatternEditor.Cursor.Row);
 		end;
 		Exit;
 	end;

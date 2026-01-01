@@ -1530,7 +1530,8 @@ begin
 		if ssShift in Shift then
 		begin
 			if Assigned(OrderList) and
-			   (OrderList.Cursor.Y < Module.Info.OrderCount) then
+			   (OrderList.Cursor.Y < Module.Info.OrderCount) and
+			   (Module.OrderList[OrderList.Cursor.Y] = CurrentPattern) then
 			begin
 				PlaybackStartPos.Order := OrderList.Cursor.Y;
 				PlaybackStartPos.Row := 0;
@@ -1543,7 +1544,8 @@ begin
 		begin
 			// F7: always use current cursor position
 			if Assigned(OrderList) and
-			   (OrderList.Cursor.Y < Module.Info.OrderCount) then
+			   (OrderList.Cursor.Y < Module.Info.OrderCount) and
+			   (Module.OrderList[OrderList.Cursor.Y] = CurrentPattern) then
 			begin
 				PlaybackStartPos.Order := OrderList.Cursor.Y;
 				PlaybackStartPos.Row := Cursor.Row;
