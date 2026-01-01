@@ -1148,8 +1148,15 @@ begin
 
 	lblPattern.SetCaption(
 		Format('%.2d/%.2d', [CurrentPattern, Module.Info.PatternCount]));
-	lblOrder.SetCaption(
-		Format('%.3d/%.3d', [Module.PlayPos.Order, Module.Info.OrderCount-1]));
+	
+	// Order label: show order cursor position when pattern exists at that position,
+	// otherwise show dots (pattern-only playback or pattern not in order list)
+	if (Module.PlayMode = PLAY_PATTERN) then //and
+	   //(OrderList.Cursor.Y < Module.Info.OrderCount) and
+	   // (Module.OrderList[OrderList.Cursor.Y] = CurrentPattern) then
+		lblOrder.SetCaption(Format('.../%.3d', [Module.Info.OrderCount-1]))
+	else
+		lblOrder.SetCaption(Format('%.3d/%.3d', [Module.PlayPos.Order, Module.Info.OrderCount-1]));
 
 	if Speed < 0 then Speed := Module.CurrentSpeed;
 	if Tempo < 0 then Tempo := Module.CurrentBPM;
