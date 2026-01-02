@@ -48,13 +48,15 @@ end;
 
 function GetVersionText: String;
 begin
-	if Build.GitDescribe <> 'unknown' then
-		Result := 'Propulse Tracker v' + ProTracker.Util.VERSION +
-			' (' + Build.GitDescribe + ') (built on ' +
-			Build.CompileDate + ' ' + Build.CompileTime + ')'
-	else
-		Result := 'Propulse Tracker v' + ProTracker.Util.VERSION +
-			' (built on ' + Build.CompileDate + ' ' + Build.CompileTime + ')';
+
+	Result := 'Propulse Tracker v' + ProTracker.Util.VERSION +
+		' (' + Build.GitDescribe + ') built on ' +
+		Build.CompileDate + ' ' + Build.CompileTime;
+end;
+
+function GetBuildVersion: String;
+begin
+	Result := Build.GitDescribe;
 end;
 
 procedure PrintHelpAndExit(ExitCode: Integer);
@@ -69,6 +71,7 @@ begin
 	WriteLn('Options:');
 	WriteLn('  -h, --help                    Show this help and exit');
 	WriteLn('  -v, --version                 Show version/build info and exit');
+	WriteLn('  --build-version               Show only the build version and exit');
 	WriteLn('  --print-config                Print config keys/values (from propulse.ini) and exit');
 	WriteLn('  --set section.name=value      Override a settings value for this run (may be repeated)');
 	WriteLn('');
@@ -81,6 +84,12 @@ end;
 procedure PrintVersionAndExit;
 begin
 	WriteLn(GetVersionText);
+	Halt(0);
+end;
+
+procedure PrintBuildVersionAndExit;
+begin
+	WriteLn(GetBuildVersion);
 	Halt(0);
 end;
 
@@ -204,6 +213,9 @@ begin
 		else
 		if (Arg = '-v') or (Arg = '--version') then
 			PrintVersionAndExit
+		else
+		if Arg = '--build-version' then
+			PrintBuildVersionAndExit
 		else
 		if Arg = '--print-config' then
 			PrintConfigAndExit
