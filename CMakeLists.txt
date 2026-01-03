@@ -62,9 +62,7 @@ if(NOT DEFINED MODE)
     set(MODE "release")
 endif()
 
-# Get git describe information at build time
-# This will be regenerated on each build via a custom command
-set(GIT_DESCRIBE_INC "${SRC_DIR}/include/gitdescribe.inc")
+# Get git describe information (used for version.txt packaging metadata)
 set(GIT_DESCRIBE "unknown")
 find_program(GIT_EXECUTABLE git)
 if(GIT_EXECUTABLE)
@@ -79,8 +77,19 @@ endif()
 if(NOT GIT_DESCRIBE OR GIT_DESCRIBE STREQUAL "")
     set(GIT_DESCRIBE "unknown")
 endif()
-# Write initial version (will be regenerated at build time)
-file(WRITE ${GIT_DESCRIBE_INC} "'${GIT_DESCRIBE}'")
+
+# Git describe will be generated at build time (in build directory, not in src/)
+set(GIT_DESCRIBE_INC "${CMAKE_BINARY_DIR}/gitdescribe.inc")
+set(GIT_DESCRIBE_DEPS "")
+if(EXISTS "${CMAKE_SOURCE_DIR}/.git/index")
+    list(APPEND GIT_DESCRIBE_DEPS "${CMAKE_SOURCE_DIR}/.git/index")
+endif()
+if(EXISTS "${CMAKE_SOURCE_DIR}/.git/HEAD")
+    list(APPEND GIT_DESCRIBE_DEPS "${CMAKE_SOURCE_DIR}/.git/HEAD")
+endif()
+if(EXISTS "${CMAKE_SOURCE_DIR}/.git/packed-refs")
+    list(APPEND GIT_DESCRIBE_DEPS "${CMAKE_SOURCE_DIR}/.git/packed-refs")
+endif()
 
 # FPC compiler finding and cross-compiler detection is handled in cmake/fpc.cmake
 
@@ -146,40 +155,14 @@ file(MAKE_DIRECTORY ${UNIT_OUTPUT_DIR})
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # Custom command to regenerate gitdescribe.inc at build time
-# This ensures git describe is always up-to-date
-if(GIT_EXECUTABLE)
-    # Create a script to run git describe and write to file
-    set(GIT_DESCRIBE_SCRIPT "${CMAKE_BINARY_DIR}/generate_git_describe.sh")
-    if(CMAKE_HOST_WIN32)
-        set(GIT_DESCRIBE_SCRIPT "${CMAKE_BINARY_DIR}/generate_git_describe.bat")
-        file(WRITE ${GIT_DESCRIBE_SCRIPT} "@echo off
-cd /d \"${CMAKE_SOURCE_DIR}\"
-for /f \"delims=\" %%i in ('\"${GIT_EXECUTABLE}\" describe --always --tags --dirty 2^>nul') do set GIT_DESC=%%i
-if \"%GIT_DESC%\"==\"\" set GIT_DESC=unknown
-echo '%GIT_DESC%' > \"${GIT_DESCRIBE_INC}\"
-")
-    else()
-        file(WRITE ${GIT_DESCRIBE_SCRIPT} "#!/bin/sh
-cd \"${CMAKE_SOURCE_DIR}\"
-GIT_DESC=\"$(${GIT_EXECUTABLE} describe --always --tags --dirty 2>/dev/null)\"
-if [ -z \"$GIT_DESC\" ]; then
-    GIT_DESC=\"unknown\"
-fi
-echo \"'$GIT_DESC'\" > \"${GIT_DESCRIBE_INC}\"
-")
-        file(CHMOD ${GIT_DESCRIBE_SCRIPT} FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
-    endif()
-    
-    add_custom_command(
-        OUTPUT ${GIT_DESCRIBE_INC}
-        COMMAND ${GIT_DESCRIBE_SCRIPT}
-        COMMENT "Generating git describe information"
-        VERBATIM
-    )
-else()
-    # No git available, create file with "unknown"
-    file(WRITE ${GIT_DESCRIBE_INC} "'unknown'")
-endif()
+add_custom_command(
+    OUTPUT ${GIT_DESCRIBE_INC}
+    COMMAND sh -c "git describe --always --tags --dirty 2>/dev/null || echo unknown" | sed "s/^/'/;s/$/'/" > ${GIT_DESCRIBE_INC}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    DEPENDS ${GIT_DESCRIBE_DEPS}
+    COMMENT "Generating git describe information"
+    VERBATIM
+)
 
 # Convert absolute paths to relative paths from build directory to avoid FPC linker script issues with parentheses
 # This helps FPC generate linker scripts with relative paths that don't have shell parsing issues
@@ -214,6 +197,7 @@ fpc_build_base_flags(REL_FPC_FLAGS_BASE_GENERIC ${TARGET_OS} ${TARGET_CPU})
 set(REL_FPC_FLAGS_BASE
     ${REL_FPC_FLAGS_BASE_GENERIC}
     "-Fi${REL_SRC_DIR}"
+    "-Fi."
     "-Fl${REL_SRC_DIR}/include/sdl2"
     "-Fl${REL_SRC_DIR}/include/bass"
     "-FE."
