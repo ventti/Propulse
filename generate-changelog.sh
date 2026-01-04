@@ -15,5 +15,5 @@ PROJECT_DIR=$(git rev-parse --show-toplevel)
     echo "### v0.10.0 - Initial Extended version"
     echo ""
     git log --pretty=format:'* %as: %s (`%h`)' 8d4f62b..0.10.0
-} > "${PROJECT_DIR}/CHANGELOG.txt"
+} > "${PROJECT_DIR}/release/CHANGELOG.txt"
 
