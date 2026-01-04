@@ -7,7 +7,13 @@
 -- - Uses the system's `curl` command (same as the shell script did).
 -- - Expects Propulse binary in the current working directory.
 
-local VERSION_URL = "https://www.dropbox.com/scl/fi/qls23vtmsb1bff3jjjhwx/version.txt?rlkey=og28di232duaelbg8ak2xn74t&st=o6h9f6qz&dl=0"
+local download_urls = {
+  version = "https://www.dropbox.com/scl/fi/qls23vtmsb1bff3jjjhwx/version.txt?rlkey=og28di232duaelbg8ak2xn74t&st=o6h9f6qz&dl=0",
+  changelog = "https://www.dropbox.com/scl/fi/kwfkl3blvbgdqb4f6vep9/CHANGELOG.txt?rlkey=lvqtjc3ylu5pyc4prk0xgc127&st=7o2v4uqh&dl=0",
+  macos = "https://www.dropbox.com/scl/fi/8sr2bxp28hqjs8h20thgn/Propulse-macos-arm64.zip?rlkey=aoqayuuqo06cbirw0ov63wrj0&st=rp8dylaq&dl=0",
+  windows = "https://www.dropbox.com/scl/fi/e5r7ztjkgzlzrihkgljgn/Propulse-windows-x64.zip?rlkey=p8uu5sqai1lyonnq5w7oqhkgc&st=83smgsxb&dl=0",
+  linux = nil -- Not implemented, placeholder
+}
 
 local function trim(s)
   return (s:gsub("^%s+", ""):gsub("%s+$", ""))
@@ -128,7 +134,7 @@ if not propulse or trim(propulse) == "" then
   os.exit(1)
 end
 
-local version_out, version_err = capture(("curl -f -s -L %q"):format(VERSION_URL))
+local version_out, version_err = capture(("curl -f -s -L %q"):format(download_urls.version))
 if not version_out then
   io.stderr:write("Failed to download version file\n")
   if version_err then
@@ -149,13 +155,111 @@ end
 
 local build_version = trim(build_out:gsub("\r", ""))
 
-print("Latest version: " .. latest_version)
-print("Build version: " .. build_version)
-
-if build_version ~= latest_version then
-  print("Update available")
-else
-  print("No update available")
+local function split_semver(version)
+  local out = nil
+  local major, minor, patch = version:match("^(%d+%.%d+%.%d+)$")
+  if major and minor and patch then
+    out.major, out.minor, out.patch = tonumber(major), tonumber(minor), tonumber(patch)
+  end
+  return out
 end
 
+
+local function split_gitdescribe(gitdescribe)
+  -- Returns a table with:
+  --   version: "X.Y.Z" | nil
+  --   since: "N" | nil               (commits since version tag)
+  --   hash: "abcdef1" | nil          (git hash from git-describe or plain hash)
+  --   dirty: boolean
+  -- Handles:
+  --   X.Y.Z
+  --   X.Y.Z-dirty
+  --   X.Y.Z-N-gHASH
+  --   X.Y.Z-N-gHASH-dirty
+  --   HASH
+  --   HASH-dirty
+  local s = trim((gitdescribe or ""):gsub("\r", ""))
+  local out = { version = { major = nil, minor = nil, patch = nil }, since = nil, hash = nil, dirty = false }
+
+  -- Version tag cases
+  do
+    local v, since, h = s:match("^(%d+%.%d+%.%d+)%-(%d+)%-g([0-9a-fA-F]+)$")
+
+    if v then
+      out.major, out.minor, out.patch = split_semver(v)
+      out.since = tonumber(since)
+      out.hash = h
+      return out
+    end
+  end
+
+  do
+    local v = s:match("^(%d+%.%d+%.%d+)$")
+    if v then
+      out.major, out.minor, out.patch = split_semver(v)
+      return out
+    end
+  end
+
+  -- Hash-only case
+  do
+    local h = s:match("^([0-9a-fA-F]+)$")
+    if h and #h >= 7 then
+      out.hash = h
+      return out
+    end
+  end
+
+  -- Unknown/unsupported format: leave fields nil/false.
+  return out
+end
+
+local function is_later_semver_than(a, b)
+  -- returns 1 if a is a later version than b
+  -- returns 0 if a is equal to b
+  -- returns -1 if a is a earlier version than b
+  if a.major > b.major then return 1 end
+  if a.major < b.major then return -1 end
+  if a.minor > b.minor then return 1 end
+  if a.minor < b.minor then return -1 end
+  if a.patch > b.patch then return 1 end
+  if a.patch < b.patch then return -1 end
+  return 0
+end
+
+local function is_later_gitdescribe_than(a, b)
+  if a == b then
+    return 0
+  end
+  local split_a = split_gitdescribe(a)
+  local split_b = split_gitdescribe(b)
+  if split_a.version ~= split_b.version then
+    return is_later_semver_than(a_version, b_version)
+  end
+  if split_a.since > split_b.since then
+    return 1
+  elseif split_a.since < split_b.since then
+    return -1
+  end
+  if split_a.hash == split_b.hash then
+    return 0
+  end
+  return nil
+end
+
+-- local latest_version_parts = split_semver(latest_version)
+-- local build_version_parts = split_semver(build_version)
+--local latest_parts = split_gitdescribe(latest_version)
+--local build_parts = split_gitdescribe(build_version)
+
+local is_later = is_later_gitdescribe_than(build_version, latest_version)
+if is_later == 1 then
+  print("Update available: " .. build_version .. " -> " .. latest_version)
+  local download_url = download_urls[host_os]
+  local download_out, download_err = capture(("curl -f -s -o Propulse-%q.zip -L %q"):format(latest_version, download_url))
+elseif is_later == -1 then
+  print("No update available: " .. build_version .. " is newer than " .. latest_version)
+else
+  print("No update available: already got the latest version (" .. build_version .. ")")
+end
 
