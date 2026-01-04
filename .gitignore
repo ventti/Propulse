@@ -66,10 +66,7 @@ debug\.txt
 *.zip
 *.tar\.gz
 *.mod
-*.sh
 *.0
-!build-all-releases.sh
-!upload-releases.sh
 data/palette/Image1\.png
 src/include/lazsdl2/bin/
 src/include/lazsdl2/tests/

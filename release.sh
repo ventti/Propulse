@@ -1,12 +1,10 @@
 set -e
-VERSION=$(git describe --tags --always --dirty)
 CI_PROJECT_DIR=$(git rev-parse --show-toplevel)
 
 ./build-all-releases.sh
-./Propulse --version
+./Propulse --version | tee release/version.txt
 ./generate-changelog.sh
 ./upload-releases.sh
-
 git push
 
 # upload to github
