@@ -1,0 +1,43 @@
+---
+description: Avoid implicit conversions that trigger inline notes
+globs: **/*.{pas,pp,inc}
+alwaysApply: false
+---
+
+# Avoid implicit conversions
+
+- Avoid implicit conversions in hot paths.
+- Prefer concrete types/overloads.
+- Keep required conversions explicit and local.
+
+```pascal
+// ❌ BAD: implicit conversion
+procedure SetValue(const V: Variant);
+begin
+  // ...
+end;
+
+SetValue(42);
+
+// ✅ GOOD: overload or explicit conversion
+procedure SetValueInt(const V: Integer);
+begin
+  // ...
+end;
+
+SetValueInt(42);
+
+// if Variant is required
+SetValue(Variant(42));
+
+// ❌ BAD: implicit string conversion
+procedure LogMsg(const S: AnsiString);
+begin
+  // ...
+end;
+
+LogMsg('text'); // default literal may be shortstring
+
+// ✅ GOOD: explicit conversion
+LogMsg(AnsiString('text'));
+```

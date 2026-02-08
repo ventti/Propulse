@@ -1,0 +1,12 @@
+---
+description: Documentation and help text rules
+globs: docs/**/*,data/help.txt,README.md,COMMIT_CONVENTIONS.md,license.txt,AGENTS.md
+alwaysApply: false
+---
+
+# Documentation Rules
+
+- Edit only what is explicitly requested; keep scope minimal
+- Keep documentation consistent with code and existing related text
+- Document intent and assumptions, not obvious code
+- Avoid adding new sections or policies unless requested

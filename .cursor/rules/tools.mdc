@@ -1,0 +1,12 @@
+---
+description: Tools and scripts rules
+globs: tools/**/*
+alwaysApply: false
+---
+
+# Tools Rules
+
+- Only make explicitly requested changes; keep the smallest possible change
+- Preserve existing behavior unless a change is explicitly requested
+- Reuse existing scripts/utilities instead of adding parallel ones
+- Avoid adding new dependencies unless explicitly allowed

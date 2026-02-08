@@ -1,0 +1,18 @@
+---
+description: Pascal/FreePascal coding rules
+globs: src/**/*.{pas,pp,inc}
+alwaysApply: false
+---
+
+# Pascal Rules
+
+- Only make explicitly requested changes; keep the smallest possible change
+- Do not mix refactors and behavior changes; avoid style-only rewrites
+- Preserve architecture/invariants; stop if unclear or multiple designs exist
+- Reuse existing code/patterns; avoid parallel implementations
+- Do not add dependencies unless explicitly allowed
+- Behavior changes require tests; high-risk areas need stronger coverage
+- Follow Pascal/FPC conventions; keep functions focused; comment only complex logic
+- FPC ICE safety: use a single related `const` block; avoid consecutive `const`
+- If an ICE appears, try minimal syntax reshapes first
+- If mouse/keyboard shortcuts change, update `data/help.txt` accordingly
