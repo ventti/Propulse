@@ -156,11 +156,11 @@ end
 local build_version = trim(build_out:gsub("\r", ""))
 
 local function split_semver(version)
-  local out = nil
-  local major, minor, patch = version:match("^(%d+%.%d+%.%d+)$")
-  if major and minor and patch then
-    out.major, out.minor, out.patch = tonumber(major), tonumber(minor), tonumber(patch)
-  end
+  local out = {}
+  local major, minor, patch = version:match("^(%d+)%.(%d+)%.(%d+)$")
+  out["major"] = tonumber(major)
+  out["minor"] = tonumber(minor)
+  out["patch"] = tonumber(patch)  
   return out
 end
 
@@ -179,14 +179,13 @@ local function split_gitdescribe(gitdescribe)
   --   HASH
   --   HASH-dirty
   local s = trim((gitdescribe or ""):gsub("\r", ""))
-  local out = { version = { major = nil, minor = nil, patch = nil }, since = nil, hash = nil, dirty = false }
-
+  local out = { version = {}, since = nil, hash = nil, dirty = false }
   -- Version tag cases
   do
     local v, since, h = s:match("^(%d+%.%d+%.%d+)%-(%d+)%-g([0-9a-fA-F]+)$")
 
     if v then
-      out.major, out.minor, out.patch = split_semver(v)
+      out.version = split_semver(v)
       out.since = tonumber(since)
       out.hash = h
       return out
@@ -196,7 +195,7 @@ local function split_gitdescribe(gitdescribe)
   do
     local v = s:match("^(%d+%.%d+%.%d+)$")
     if v then
-      out.major, out.minor, out.patch = split_semver(v)
+      out.version.major, out.version.minor, out.version.patch = split_semver(v)
       return out
     end
   end
@@ -214,52 +213,72 @@ local function split_gitdescribe(gitdescribe)
   return out
 end
 
-local function is_later_semver_than(a, b)
-  -- returns 1 if a is a later version than b
-  -- returns 0 if a is equal to b
-  -- returns -1 if a is a earlier version than b
-  if a.major > b.major then return 1 end
-  if a.major < b.major then return -1 end
-  if a.minor > b.minor then return 1 end
-  if a.minor < b.minor then return -1 end
-  if a.patch > b.patch then return 1 end
-  if a.patch < b.patch then return -1 end
-  return 0
-end
-
 local function is_later_gitdescribe_than(a, b)
   if a == b then
     return 0
   end
   local split_a = split_gitdescribe(a)
   local split_b = split_gitdescribe(b)
-  if split_a.version ~= split_b.version then
-    return is_later_semver_than(a_version, b_version)
-  end
-  if split_a.since > split_b.since then
-    return 1
-  elseif split_a.since < split_b.since then
-    return -1
-  end
-  if split_a.hash == split_b.hash then
-    return 0
-  end
-  return nil
+
+  if split_a.version.major > split_b.version.major then return 1 end
+  if split_a.version.major < split_b.version.major then return -1 end
+  if split_a.version.minor > split_b.version.minor then return 1 end
+  if split_a.version.minor < split_b.version.minor then return -1 end
+  if split_a.version.patch > split_b.version.patch then return 1 end
+  if split_a.version.patch < split_b.version.patch then return -1 end
+
+  if split_a.since > split_b.since then return 1 end
+  if split_a.since < split_b.since then return -1 end
+  if split_a.hash ~= split_b.hash then return nil end
+  if split_a.dirty and not split_b.dirty then return 1 end -- a is newer than b
+  if not split_a.dirty and split_b.dirty then return -1 end  -- b is newer than a
+  if split_a.dirty and split_b.dirty then return nil end  -- both dirty, unknown changes
+  return 0
 end
 
--- local latest_version_parts = split_semver(latest_version)
--- local build_version_parts = split_semver(build_version)
---local latest_parts = split_gitdescribe(latest_version)
---local build_parts = split_gitdescribe(build_version)
+local function is_dirty(version)
+  -- substring
+  local dirty = version:sub(-5) == "-dirty"
+  return dirty
+end
 
-local is_later = is_later_gitdescribe_than(build_version, latest_version)
-if is_later == 1 then
-  print("Update available: " .. build_version .. " -> " .. latest_version)
+local is_later = is_later_gitdescribe_than(latest_version, build_version)
+if is_dirty(latest_version) then
+  print("WARNING: Latest version is dirty: " .. latest_version)
+end
+if is_dirty(build_version) then
+  print("WARNING: Latest version is dirty: " .. latest_version)
+end
+
+local function download_latest_version()
   local download_url = download_urls[host_os]
   local download_out, download_err = capture(("curl -f -s -o Propulse-%q.zip -L %q"):format(latest_version, download_url))
+  if not download_out then
+    io.stderr:write("Failed to download latest version\n")
+    if download_err then
+      io.stderr:write("Failed to download latest version: " .. download_err .. "\n")
+      os.exit(1)
+    end
+  end
+end
+
+if table.contains(arg, "--update") or table.contains(arg, "-u") then
+  local can_update = true
+end
+if table.contains(arg, "--force") or table.contains(arg, "-f") then
+  local do_update = true
+end
+if is_later == 1 then
+  print("Update available: " .. build_version .. " -> " .. latest_version)
+  if can_update then
+    do_update = true
+  else
+    print("Update available, run with --update or -u to update")
+  end
 elseif is_later == -1 then
   print("No update available: " .. build_version .. " is newer than " .. latest_version)
 else
   print("No update available: already got the latest version (" .. build_version .. ")")
 end
 
+if do_update then download_latest_version() end
