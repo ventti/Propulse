@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "propulse-ui": {
+      "command": "python3",
+      "args": ["tools/mcp/propulse_ui_mcp.py"],
+      "env": {
+        "PROPULSE_ROOT": "${workspaceFolder}"
+      }
+    }
+  }
+}
