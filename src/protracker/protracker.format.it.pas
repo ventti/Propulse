@@ -75,15 +75,21 @@ var
 	begin
 		C := Cmd;
 		if Prm in [0..255] then
-			P := Prm
-		else
-			P := Note.Parameter;
-		if (Cmd > 0) and (Cmd <> $C) then
 		begin
-			if P = 0 then
-				P := PrevParam[Cmd]
-			else
+			P := Prm;
+			if (Cmd > 0) and (Cmd <> $C) and (P <> 0) then
 				PrevParam[Cmd] := P;
+		end
+		else
+		begin
+			P := Note.Parameter;
+			if (Cmd > 0) and (Cmd <> $C) then
+			begin
+				if P = 0 then
+					P := PrevParam[Cmd]
+				else
+					PrevParam[Cmd] := P;
+			end;
 		end;
 	end;
 
@@ -560,6 +566,8 @@ begin
 
 		for channel := 0 to 63 do
 			PrevParameter[channel] := 0;
+		FillChar(previousmaskvariable, SizeOf(previousmaskvariable), 0);
+		FillChar(RowNotes, SizeOf(RowNotes), 0);
 
 		channel := 0;
 		row := 0;
