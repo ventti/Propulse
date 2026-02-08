@@ -127,6 +127,7 @@ uses
 	{$IFDEF BASS}BASS,{$ENDIF}
 	{$IFDEF SOXR}soxr,{$ENDIF}
 	CommandLine,
+	Automation,
 	ProTracker.Messaging, ProTracker.Import,
 	Screen.Editor, Screen.Samples, Screen.FileReq, Screen.FileReqSample,
 	Screen.Log, Screen.Help, Screen.Config, Screen.Splash,
@@ -2161,6 +2162,9 @@ begin
 	Console.Paint;
 
 	MouseCursor.InWindow := True;
+
+	if CommandLine.GetAutomationScriptFilename <> '' then
+		InitAutomation(CommandLine.GetAutomationScriptFilename, CommandLine.GetAutomationExitOnComplete);
 end;
 
 destructor TWindow.Destroy;
@@ -2223,6 +2227,13 @@ end;
 
 procedure TWindow.ProcessFrame;
 begin
+	ProcessAutomationFrame(Video.Window);
+	if AutomationShouldQuit then
+	begin
+		QuitFlag := True;
+		Exit;
+	end;
+
 	HandleInput;
 	SyncTo60Hz;
 	ProcessMouseMovement;

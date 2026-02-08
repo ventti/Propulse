@@ -9,6 +9,8 @@ procedure ParseCommandLine;
 procedure ApplySettingsOverrides(const Cfg: TConfigurationManager);
 procedure RestoreSettingsOverrides(const Cfg: TConfigurationManager);
 function GetRequestedModuleFilename: String;
+function GetAutomationScriptFilename: String;
+function GetAutomationExitOnComplete: Boolean;
 
 implementation
 
@@ -40,10 +42,22 @@ type
 var
 	Overrides: array of TSettingOverride;
 	RequestedModuleFilename: String;
+	AutomationScriptFilename: String;
+	AutomationExitOnComplete: Boolean;
 
 function GetRequestedModuleFilename: String;
 begin
 	Result := RequestedModuleFilename;
+end;
+
+function GetAutomationScriptFilename: String;
+begin
+	Result := AutomationScriptFilename;
+end;
+
+function GetAutomationExitOnComplete: Boolean;
+begin
+	Result := AutomationExitOnComplete;
 end;
 
 function GetVersionText: String;
@@ -74,6 +88,8 @@ begin
 	WriteLn('  --build-version               Show only the build version and exit');
 	WriteLn('  --print-config                Print config keys/values (from propulse.ini) and exit');
 	WriteLn('  --set section.name=value      Override a settings value for this run (may be repeated)');
+	WriteLn('  --automation script.txt       Run UI automation script');
+	WriteLn('  --automation-exit             Exit after automation completes');
 	WriteLn('');
 	WriteLn('Notes:');
 	WriteLn('  - Setting names reuse the same Section/Name identifiers as the Settings UI.');
@@ -220,6 +236,22 @@ begin
 		if Arg = '--print-config' then
 			PrintConfigAndExit
 		else
+		if Arg = '--automation' then
+		begin
+			Inc(i);
+			if i > ParamCount then
+			begin
+				WriteLn(StdErr, 'warning: missing argument after --automation');
+				Exit;
+			end;
+			AutomationScriptFilename := ParamStr(i);
+		end
+		else
+		if Arg = '--automation-exit' then
+		begin
+			AutomationExitOnComplete := True;
+		end
+		else
 		if Arg = '--set' then
 		begin
 			Inc(i);
@@ -262,6 +294,18 @@ begin
 			Halt(1);
 		end;
 		RequestedModuleFilename := AbsFn;
+	end;
+
+	if AutomationScriptFilename <> '' then
+	begin
+		AbsFn := ExpandFileName(AutomationScriptFilename);
+		if not FileExists(AbsFn) then
+		begin
+			WriteLn(StdErr, 'error: automation script not found: ', AutomationScriptFilename);
+			WriteLn(StdErr, '       resolved path: ', AbsFn);
+			Halt(1);
+		end;
+		AutomationScriptFilename := AbsFn;
 	end;
 end;
 

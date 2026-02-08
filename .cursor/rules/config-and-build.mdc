@@ -11,5 +11,3 @@ alwaysApply: false
 - Assume API/ABI and data formats are stable; flag compatibility impacts
 - Keep build artifacts out of the repo (respect `.gitignore`)
 - Libraries in `lib/` are committed despite `.gitignore`
-- Commit messages: lowercase, imperative, concise, no period; use a colon if needed
-- Keep commits atomic: one logical change per commit
