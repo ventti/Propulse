@@ -1035,7 +1035,7 @@ begin
 		keyGoToPlaybackPos:
 			if not InModal then
 			begin
-				if (Module.PlayMode <> PLAY_STOPPED) then
+				if (Module.PlayMode = PLAY_SONG) and (CurrentScreen = Editor) and FollowPlayback then
 				begin
 					// Switch to Pattern Editor (like F2)
 					FollowPlayback := False;
@@ -1061,13 +1061,6 @@ begin
 						PatternEditor.Paint;
 						OrderList.Paint;
 					end;
-				end
-				else
-				begin
-					// If not playing, just switch to Pattern Editor (like F2)
-					FollowPlayback := False;
-					Editor.ActiveControl := PatternEditor;
-					ChangeScreen(TCWEScreen(Editor));
 				end;
 			end;
 

@@ -13,7 +13,7 @@
 
 <#Main><h1>Propulse Tracker Help
 
-<c><f9>Last modified: 2025-12-30
+<c><f9>Last modified: 2026-02-08
 
 <h2>Global Keys:
   Escape            Context menu
@@ -28,7 +28,7 @@
   Shift-F7          Play from stored order position, beginning of pattern
   F8                Stop playback and restore cursor to start position
   Shift-F8          Stop playback and keep cursor at current position
-  g                 Set cursor to current playback position
+  g                 Set cursor to current playback position (playback view)
   F9                Load module (also Ctrl-L, Ctrl-O)
   F10               Save module (also Ctrl-W)
   F11               Orderlist
