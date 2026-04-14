@@ -906,21 +906,25 @@ begin
 	Stream.Write8(Info.OrderCount and $FF);
 	Stream.Write8($7F); // ProTracker puts 0x7F at this place (restart pos)
 
-	// write orderlist
+	// write orderlist (zero slots beyond OrderCount to prevent stale pattern refs)
 	//
 	for i := 0 to 127 do
-		Stream.Write8(OrderList[i] and $FF);
+	begin
+		if i < Info.OrderCount then
+			Stream.Write8(OrderList[i] and $FF)
+		else
+			Stream.Write8(0);
+	end;
 
-	// write ID
+	// write ID and pattern data
 	//
-	if CountUsedPatterns < 64 then
+	j := OrderList.GetHighestUsed;
+
+	if j < 64 then
 		Stream.WriteString('M.K.')
 	else
 		Stream.WriteString('M!K!'); // >64 patterns
 
-	// write pattern data
-	//
-	j := OrderList.GetHighestUsed;
 	Log('Writing %d patterns...', [j+1]);
 
 	for i := 0 to j do
