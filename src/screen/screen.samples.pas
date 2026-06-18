@@ -1367,6 +1367,14 @@ begin
 	else
 		Result := False;
 
+		// When editing the sample name, swallow printable characters so they
+		// get inserted via TextInput instead of triggering global shortcuts
+		// (notably 'g' = go to playback position, the only bare-letter global key).
+		if IsFocused and (not CursorInPlay)
+			and (Key >= Ord(' ')) and (Key <= Ord('~'))
+			and ((Shift = []) or (Shift = [ssShift])) then
+				Result := True;
+
 		if ((CursorInPlay) or (not IsFocused)) and (Shift = []) then
 		begin
 			// Play notes
