@@ -19,12 +19,12 @@ VERSION=$(cat "${CI_PROJECT_DIR}/release/version.txt")
     dropbox_mkdir "${PROJECT_NAME}/releases/${VERSION}" || true
 } >/dev/null 2>&1
 
-dropbox_upload "${CI_PROJECT_DIR}/release/CHANGELOG.txt" "${PROJECT_NAME}/releases/latest/CHANGELOG.txt"
-dropbox_upload "${CI_PROJECT_DIR}/release/version.txt" "${PROJECT_NAME}/releases/latest/version.txt"
 
-for file in "$CI_PROJECT_DIR"/release/Propulse-*.zip; do
+for file in "$CI_PROJECT_DIR"/release/EXTended-*.zip; do
     filename=$(basename "${file}")
     dropbox_upload "${file}" "${PROJECT_NAME}/releases/${VERSION}/${filename}"
     dropbox_upload "${file}" "${PROJECT_NAME}/releases/latest/${filename}"
 done
 
+dropbox_upload "${CI_PROJECT_DIR}/release/version.txt" "${PROJECT_NAME}/releases/latest/version.txt"
+dropbox_upload "${CI_PROJECT_DIR}/release/CHANGELOG.txt" "${PROJECT_NAME}/releases/latest/CHANGELOG.txt"
