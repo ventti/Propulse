@@ -133,11 +133,21 @@ begin
 					// 16-based to 10-based
 					SetNote($D, (P div 10) shl 4 or (P mod 10));
 				end;
-		CMD_D:	if (P >= $F1)  //(((P shr 4) = $F) and ((P and 4) <> 0))
-				or (((P and 4) = $F) and (P >= $1F)) then //((P shr 4) <> 0)) then
-				SetNoteEx($B)		// Fine volume slide
+		CMD_D:	// IT volume slide Dxy:
+				//   y=$F, x<>0 -> fine slide up by x   -> EAx
+				//   x=$F, y<>0 -> fine slide down by y  -> EBy
+				//   otherwise (y=0 up / x=0 down)       -> Axy
+				if ((P and $0F) = $0F) and ((P shr 4) <> 0) then
+				begin
+					// Fine volume slide up by x (amount is the HIGH nibble)
+					C := $E;
+					P := $A0 or (P shr 4);
+				end
 				else
-				SetNote($A);		// Volume slide
+				if ((P shr 4) = $0F) and ((P and $0F) <> 0) then
+					SetNoteEx($B)	// Fine volume slide down by y (low nibble)
+				else
+					SetNote($A);	// Volume slide
 		CMD_E:	if P < $F0 then
 					SetNote($2)		// Pitch slide down
 				else
