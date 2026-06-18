@@ -1545,7 +1545,16 @@ begin
 			end;
 
 		SDL_DROPFILE:
+			// SDL hands us the dropped path as UTF-8. On Unix/macOS the file
+			// APIs already expect UTF-8, but on Windows the ANSI file APIs
+			// interpret the bytes via the system codepage, which mangles
+			// non-ASCII (e.g. Scandinavian) characters so the file isn't found.
+			// Convert UTF-8 -> system ANSI on Windows to fix loading.
+			{$IFDEF WINDOWS}
+			DoLoadModule(Utf8ToAnsi(InputEvent.drop._file));
+			{$ELSE}
 			DoLoadModule(InputEvent.drop._file);
+			{$ENDIF}
 
 		SDL_QUITEV:
 			Close;
