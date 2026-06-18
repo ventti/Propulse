@@ -358,8 +358,15 @@ begin
 	if DialogBooleans[SAMPLES_AFTERLOOP] then
 	begin
 		for i := 0 to 30 do
-			if CroppableSample[i] > 0 then
-				Module.Samples[i].Resize(Module.Samples[i].ByteLength - CroppableSample[i]);
+			// Only crop if the sample still holds enough data and is looped.
+			// A sample may have been cleared by the remove-unused/duplicate
+			// steps above; cropping it would underflow the unsigned byte
+			// length and resize the sample to a huge size, crashing the app.
+			if (CroppableSample[i] > 0)
+				and (not IsEmptySample(Module.Samples[i]))
+				and (Module.Samples[i].IsLooped)
+				and (CroppableSample[i] < Module.Samples[i].ByteLength) then
+					Module.Samples[i].Resize(Module.Samples[i].ByteLength - CroppableSample[i]);
 	end;
 
 	// Rearrange samples
