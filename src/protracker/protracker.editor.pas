@@ -1581,7 +1581,8 @@ begin
 	if FollowPlayback {Module.PlayMode = PLAY_SONG} then
 	begin
 		// 's' key: solo/unsolo current channel during playback
-		if Key = SDLK_s then
+		// (ignore when modifiers are held, e.g. Ctrl+S = save)
+		if (Key = SDLK_s) and (Shift * [ssCtrl, ssAlt, ssMeta] = []) then
 		begin
 			Editor.ToggleChannelSolo(Cursor.Channel);
 			Exit(True);
