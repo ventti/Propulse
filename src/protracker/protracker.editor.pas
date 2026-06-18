@@ -1602,37 +1602,13 @@ begin
 	//
 	if Key = SDLK_F7 then //keyPlaybackPlayFrom
 	begin
-		PlaybackStartPos.Pattern := CurrentPattern;
-		PlaybackStartPos.Channel := Cursor.Channel;
-		
-		// Shift-F7: start from beginning of pattern at current order
+		// Shift-F7: start from beginning of pattern; F7: from cursor row.
+		// Shared logic plays from the order cursor when it points at the
+		// visible pattern, otherwise just plays the current pattern.
 		if ssShift in Shift then
-		begin
-			if Assigned(OrderList) and
-			   (OrderList.Cursor.Y < Module.Info.OrderCount) and
-			   (Module.OrderList[OrderList.Cursor.Y] = CurrentPattern) then
-			begin
-				PlaybackStartPos.Order := OrderList.Cursor.Y;
-				PlaybackStartPos.Row := 0;
-				Module.Play(OrderList.Cursor.Y, 0);
-			end
-			else
-				Module.PlayPattern(CurrentPattern, 0);
-		end
+			Editor.StartPlaybackFromCursor(0)
 		else
-		begin
-			// F7: always use current cursor position
-			if Assigned(OrderList) and
-			   (OrderList.Cursor.Y < Module.Info.OrderCount) and
-			   (Module.OrderList[OrderList.Cursor.Y] = CurrentPattern) then
-			begin
-				PlaybackStartPos.Order := OrderList.Cursor.Y;
-				PlaybackStartPos.Row := Cursor.Row;
-				Module.Play(OrderList.Cursor.Y, Cursor.Row);
-			end
-			else
-				Module.PlayPattern(CurrentPattern, Cursor.Row);
-		end;
+			Editor.StartPlaybackFromCursor(Cursor.Row);
 		Exit(True);
 	end;
 

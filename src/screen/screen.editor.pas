@@ -88,6 +88,7 @@ type
 		function 	ScopeClicked(Sender: TCWEControl; Button: TMouseButton;
 					X, Y: Integer; P: TPoint): Boolean;
 		function 	FindNearestPatternInOrderList(Pattern: Byte; NearOrder: Byte): Integer;
+		procedure	SyncOrderCursorToPattern(Pattern: Byte);
 	public
 		lblAmp,
 		lblMessage,
@@ -123,6 +124,7 @@ type
 		procedure 	SetSample(i: Integer = -1);
 		procedure 	SelectPattern(i: Integer);
 		procedure 	SeekTo(Order, Row: Byte);
+		procedure 	StartPlaybackFromCursor(Row: Integer);
 		function 	ShowCommandHelp: Boolean;
 
 		function	OnContextMenu: Boolean; override;
@@ -257,7 +259,9 @@ begin
 		end
 		else
 		begin
-			i := Integer(Module.PlayPos.Order) + Delta;
+			// While stopped, navigate relative to the order cursor (not the
+			// stale playback order) so this matches every other method.
+			i := Integer(OrderList.Cursor.Y) + Delta;
 			if (i >= 0) and (i < Module.Info.OrderCount) then
 				SeekTo(Byte(i), PatternEditor.Cursor.Row);
 		end;
@@ -847,10 +851,45 @@ begin
 	end;
 end;
 
+// Move the order list cursor to the nearest order position that contains
+// the given pattern (relative to the current cursor). If the pattern does
+// not appear in the order list, the cursor is left unchanged so that F7
+// will play just the current pattern. Used by every (non-playback) method
+// that makes a pattern visible in the editor, so they all behave the same.
+procedure TEditorScreen.SyncOrderCursorToPattern(Pattern: Byte);
+var
+	OrderPos: Integer;
+begin
+	if (not Assigned(OrderList)) or (Module.Info.OrderCount = 0) then Exit;
+	OrderPos := FindNearestPatternInOrderList(Pattern, OrderList.Cursor.Y);
+	if OrderPos >= 0 then
+		OrderList.Cursor.Y := OrderPos;
+end;
+
+// Shared F7 behaviour: continue/start playback from the current edit
+// position. If the order cursor points at the currently visible pattern,
+// play the song from that order; otherwise (pattern not represented at the
+// order cursor / not in the order list) just play the current pattern.
+procedure TEditorScreen.StartPlaybackFromCursor(Row: Integer);
+begin
+	PlaybackStartPos.Pattern := CurrentPattern;
+	PlaybackStartPos.Channel := PatternEditor.Cursor.Channel;
+	PlaybackStartPos.Row     := Row;
+
+	if Assigned(OrderList) and
+	   (OrderList.Cursor.Y < Module.Info.OrderCount) and
+	   (Module.OrderList[OrderList.Cursor.Y] = CurrentPattern) then
+	begin
+		PlaybackStartPos.Order := OrderList.Cursor.Y;
+		Module.Play(OrderList.Cursor.Y, Row);
+	end
+	else
+		Module.PlayPattern(CurrentPattern, Row);
+end;
+
 procedure TEditorScreen.SelectPattern(i: Integer);
 var
 	Evt: TModuleEvent;
-	OrderPos: Integer;
 begin
 	Evt := Module.OnPlayModeChange;
 	Module.OnPlayModeChange := nil;
@@ -880,13 +919,7 @@ begin
 						(Module.IsPatternEmpty(CurrentPattern)) then
 							Module.CountUsedPatterns;
 					Dec(CurrentPattern);
-					// Update order list cursor to nearest occurrence of new pattern
-					if Module.Info.OrderCount > 0 then
-					begin
-						OrderPos := FindNearestPatternInOrderList(CurrentPattern, OrderList.Cursor.Y);
-						if OrderPos >= 0 then
-							OrderList.Cursor.Y := OrderPos;
-					end;
+					SyncOrderCursorToPattern(CurrentPattern);
 				end;
 			end;
 			UpdateInfoLabels;
@@ -902,13 +935,7 @@ begin
 				if CurrentPattern < MAX_PATTERNS-1 then
 				begin
 					Inc(CurrentPattern);
-					// Update order list cursor to nearest occurrence of new pattern
-					if Module.Info.OrderCount > 0 then
-					begin
-						OrderPos := FindNearestPatternInOrderList(CurrentPattern, OrderList.Cursor.Y);
-						if OrderPos >= 0 then
-							OrderList.Cursor.Y := OrderPos;
-					end;
+					SyncOrderCursorToPattern(CurrentPattern);
 				end;
 			end;
 			UpdateInfoLabels;
@@ -918,14 +945,7 @@ begin
 		if (i >= 0) and (i < 100) then
 		begin
 			CurrentPattern := i;
-			// Update order list cursor to nearest occurrence of this pattern
-			if Module.Info.OrderCount > 0 then
-			begin
-				OrderPos := FindNearestPatternInOrderList(CurrentPattern, OrderList.Cursor.Y);
-				if OrderPos >= 0 then
-					OrderList.Cursor.Y := OrderPos;
-				// If pattern not in order list, leave cursor unchanged
-			end;
+			SyncOrderCursorToPattern(CurrentPattern);
 			UpdateInfoLabels;
 		end;
 	end;
@@ -1295,27 +1315,15 @@ begin
 
 	if Key = SDLK_F7 then
 	begin
-		PlaybackStartPos.Pattern := CurrentPattern;
-		PlaybackStartPos.Channel := PatternEditor.Cursor.Channel;
-		PlaybackStartPos.Order := Cursor.Y;
-		// Shift-F7: start from beginning of pattern at current order
+		// Adopt the order cursor's pattern as the active/visible pattern so
+		// F7 here behaves identically to F7 in the pattern editor.
+		if Cursor.Y < Module.Info.OrderCount then
+			CurrentPattern := Module.OrderList[Cursor.Y];
+		// Shift-F7: from start of pattern; F7: from the current cursor row.
 		if ssShift in Shift then
-		begin
-			PlaybackStartPos.Row := 0;
-			if (Cursor.Y < Module.Info.OrderCount) then
-				Module.Play(Cursor.Y, 0)
-			else
-				Module.PlayPattern(CurrentPattern, 0);
-		end
+			Editor.StartPlaybackFromCursor(0)
 		else
-		begin
-			// F7: always use current cursor position
-			PlaybackStartPos.Row := PatternEditor.Cursor.Row;
-			if (Cursor.Y < Module.Info.OrderCount) then
-				Module.Play(Cursor.Y, PatternEditor.Cursor.Row)
-			else
-				Module.PlayPattern(CurrentPattern, PatternEditor.Cursor.Row);
-		end;
+			Editor.StartPlaybackFromCursor(PatternEditor.Cursor.Row);
 		Exit;
 	end;
 
