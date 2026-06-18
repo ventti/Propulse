@@ -1367,13 +1367,6 @@ begin
 			Editor.Paint;
 		end;
 
-		ctrlkeySPACE:
-		begin
-			AddOrderCountUndo(Module.Info.OrderCount, Cursor.Y + 1);
-			Module.Info.OrderCount := Cursor.Y + 1;
-			Editor.UpdateInfoLabels;
-		end;
-
 		ctrlkeyINSERT:
 		begin
 			AddOrderUndo(uaInsertOrder, Cursor.Y, Module.OrderList[Cursor.Y], CurrentPattern, 'Insert order');
