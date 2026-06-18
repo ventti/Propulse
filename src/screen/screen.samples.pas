@@ -892,7 +892,11 @@ begin
 	if ModifySamples then
 	begin
 		Module.Stop;
-		Module.Samples.Move(iFrom, iTo);
+		// Swap the two slots. Note: a list Move() is a remove+reinsert that
+		// shifts every entry in between, which is NOT a swap and corrupts the
+		// whole sample list; Exchange swaps just these two slots.
+		Module.Samples.Exchange(iFrom, iTo);
+		Module.IndexSamples;
 	end;
 
 	if ModifyPatterns then
