@@ -1215,6 +1215,12 @@ begin
 		SELECT_NEXT: if CurrentSample < 31 then Inc(CurrentSample);
 	end;
 
+	// Keep the pattern editor's "replace with" sample (used by the
+	// Note.UseLast/Space shortcut) in sync with the selected sample, so that
+	// browsing samples in the Sample List carries over to the Pattern Editor.
+	if (CurrentSample in [1..31]) and Assigned(PatternEditor) then
+		PatternEditor.LastNote.Sample := CurrentSample;
+
 	if IsEmptySample(Module.Samples[CurrentSample-1]) then
 		lblSample.ColorFore := 2
 	else
