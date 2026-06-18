@@ -2129,17 +2129,13 @@ begin
 			Selection.Bottom := Max(Cursor.Row, Selection.Bottom);
 		end;
 
-		keyBlockMarkEnd:	// Mark end of block (fixme maybe)
+		keyBlockMarkEnd:	// Mark end of block at cursor (mirror of MarkStart)
 		begin
 			Result := True;
-			i := Selection.Right;
-			n := Cursor.Channel;
-			Selection.Left   := Min(i, n);
-			Selection.Right  := Max(i, n);
-			i := Cursor.Row;
-			n := Selection.Bottom;
-			Selection.Bottom := Max(i, n);
-			Selection.Top    := Min(i, n);
+			Selection.Right  := Cursor.Channel;
+			Selection.Bottom := Cursor.Row;
+			Selection.Left   := Min(Cursor.Channel, Selection.Left);
+			Selection.Top    := Min(Cursor.Row, Selection.Top);
 		end;
 
 		keyBlockUnmark:		// Unmark block/Release clipboard memory
