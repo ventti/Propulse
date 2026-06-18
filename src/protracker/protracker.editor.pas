@@ -164,8 +164,15 @@ type
 		UndoCount:	Integer;
 		RedoCount:	Integer;
 		UndoInProgress: Boolean;
+		// Block undo support: snapshot the current pattern, run an operation,
+		// then diff to record a single combined undo entry.
+		BlockUndoActive: Boolean;
+		BlockUndoDesc:   AnsiString;
+		UndoSnapshot:    array[0..AMOUNT_CHANNELS-1, 0..63] of TNote;
 		
 		procedure	ClearRedo;
+		procedure	BeginPatternUndo(const Description: AnsiString);
+		procedure	EndPatternUndo(ActionType: TUndoActionType);
 		function	GetChannelFromX(X: Integer): Integer;
 		function	GetRowFromY(Y: Integer): Integer;
 	public
@@ -562,6 +569,68 @@ end;
 procedure TPatternEditor.ClearRedo;
 begin
 	RedoCount := 0;
+end;
+
+// Snapshot the current pattern before a multi-cell block operation.
+// Locks per-note undo capture so the whole operation produces a single
+// combined undo entry (see EndPatternUndo).
+procedure TPatternEditor.BeginPatternUndo(const Description: AnsiString);
+var
+	x, y: Integer;
+begin
+	if UndoInProgress or BlockUndoActive then Exit;
+	for x := 0 to AMOUNT_CHANNELS-1 do
+		for y := 0 to 63 do
+			UndoSnapshot[x, y] := Module.Notes[CurrentPattern, x, y];
+	BlockUndoDesc   := Description;
+	BlockUndoActive := True;
+	Locked := True;
+end;
+
+// Diff the current pattern against the snapshot taken by BeginPatternUndo
+// and record a single undo entry for all changed cells.
+procedure TPatternEditor.EndPatternUndo(ActionType: TUndoActionType);
+var
+	x, y, n: Integer;
+	UndoEntry: TUndoEntry;
+	Snap, Cur: TNote;
+begin
+	if not BlockUndoActive then Exit;
+	BlockUndoActive := False;
+	Locked := False;
+
+	n := 0;
+	for x := 0 to AMOUNT_CHANNELS-1 do
+		for y := 0 to 63 do
+		begin
+			Snap := UndoSnapshot[x, y];
+			Cur  := Module.Notes[CurrentPattern, x, y];
+			if (Snap.Sample <> Cur.Sample) or (Snap.Command <> Cur.Command) or
+			   (Snap.Parameter <> Cur.Parameter) or (Snap.Pitch <> Cur.Pitch) then
+				Inc(n);
+		end;
+	if n = 0 then Exit;
+
+	UndoEntry := CreateUndoEntry(ActionType, CurrentPattern, BlockUndoDesc);
+	SetLength(UndoEntry.Changes, n);
+	n := 0;
+	for x := 0 to AMOUNT_CHANNELS-1 do
+		for y := 0 to 63 do
+		begin
+			Snap := UndoSnapshot[x, y];
+			Cur  := Module.Notes[CurrentPattern, x, y];
+			if (Snap.Sample <> Cur.Sample) or (Snap.Command <> Cur.Command) or
+			   (Snap.Parameter <> Cur.Parameter) or (Snap.Pitch <> Cur.Pitch) then
+			begin
+				UndoEntry.Changes[n].Pattern := CurrentPattern;
+				UndoEntry.Changes[n].Channel := x;
+				UndoEntry.Changes[n].Row     := y;
+				UndoEntry.Changes[n].OldNote := UndoSnapshot[x, y];
+				UndoEntry.Changes[n].NewNote := Module.Notes[CurrentPattern, x, y];
+				Inc(n);
+			end;
+		end;
+	AddUndoEntry(UndoEntry);
 end;
 
 function TPatternEditor.CreateUndoEntry(ActionType: TUndoActionType; Pattern: Byte; const Description: AnsiString): TUndoEntry;
@@ -980,7 +1049,7 @@ begin
 		SetNote(Pattern, Channel, Row, EmptyNote);
 	end;
 	
-	if not UndoInProgress then
+	if not UndoInProgress and not BlockUndoActive then
 	begin
 		Locked := False;
 		Module.SetModified;
@@ -1039,7 +1108,7 @@ begin
 		Module.Notes[Pattern, Channel, 63] := EmptyNote;
 	end;
 	
-	if not UndoInProgress then
+	if not UndoInProgress and not BlockUndoActive then
 	begin
 		Locked := False;
 		Module.SetModified;
@@ -1118,11 +1187,11 @@ procedure TPatternEditor.BufferClear(R: TRect; Masked: Boolean = False);
 var
 	x, y: Integer;
 begin
-	Locked := True;
+	BeginPatternUndo('Clear block');
 	for x := R.Left to R.Right do
 		for y := R.Top to R.Bottom do
 			SetNote(CurrentPattern, x, y, EmptyNote, Masked);
-	Locked := False;
+	EndPatternUndo(uaBlockClear);
 	Module.SetModified;
 end;
 
@@ -1144,7 +1213,7 @@ var
 	x, y: Integer;
 	Note: PNote;
 begin
-	Locked := True;
+	BeginPatternUndo('Paste block');
 
 	case Mix of
 
@@ -1174,11 +1243,11 @@ begin
 			end;
 
 	else
-		Locked := False;
+		EndPatternUndo(uaBlockPaste);
 		Exit;
 	end;
 
-	Locked := False;
+	EndPatternUndo(uaBlockPaste);
 	Module.SetModified;
 end;
 
@@ -1244,6 +1313,7 @@ begin
 	p := CurrentPattern;
 	dy := Dest.Top;
 
+	BeginPatternUndo('Swap block');
 	for sy := Selection.Top to Selection.Bottom do
 	begin
 		dx := Dest.Left;
@@ -1256,6 +1326,7 @@ begin
 		end;
 		Inc(dy);
 	end;
+	EndPatternUndo(uaBlockPaste);
 
 	{Editor.MessageText(format('sel=%d,%d-%d,%d  dest=%d,%d-%d,%d', [
 		Src.Left, Src.Top, Src.Right, Src.Bottom,
@@ -1270,6 +1341,7 @@ begin
 	p := CurrentPattern;
 	t := Selection.Top;
 
+	BeginPatternUndo('Double/halve block');
 	for x := Selection.Left to Selection.Right do
 	begin
 		if DoubleIt then
@@ -1286,6 +1358,7 @@ begin
 				if y mod 2 = 0 then
 					Module.Notes[p, x, (y div 2) + t] := Module.Notes[p, x, y+t];
 	end;
+	EndPatternUndo(uaBlockPaste);
 
 	Module.SetModified;
 end;
@@ -1300,6 +1373,7 @@ begin
 	h := Selection.Bottom - t;
 	if h <= 0 then Exit;
 
+	BeginPatternUndo('Slide effect');
 	for x := Selection.Left to Selection.Right do
 	begin
 		FX1 := Module.Notes[p, x, t].Parameter;
@@ -1311,6 +1385,7 @@ begin
 		for y := 0 to h do
 			Module.Notes[p, x, y+t].Parameter := Round(FX1 + (step * y));
 	end;
+	EndPatternUndo(uaBlockSlideEffect);
 
 	Module.SetModified;
 end;
@@ -1319,12 +1394,14 @@ procedure TPatternEditor.BlockWipeEffects;
 var
 	x, y: Integer;
 begin
+	BeginPatternUndo('Wipe effects');
 	for x := Selection.Left to Selection.Right do
 		for y := Selection.Top to Selection.Bottom do
 		begin
 			Module.Notes[CurrentPattern, x, y].Command   := 0;
 			Module.Notes[CurrentPattern, x, y].Parameter := 0;
 		end;
+	EndPatternUndo(uaBlockWipeEffects);
 	Module.SetModified;
 end;
 
@@ -1332,12 +1409,14 @@ procedure TPatternEditor.BlockSetSample;
 var
 	x, y: Integer;
 begin
+	BeginPatternUndo('Set sample');
 	for x := Selection.Left to Selection.Right do
 		for y := Selection.Top to Selection.Bottom do
 		begin
 			if Module.Notes[CurrentPattern, x, y].Sample <> 0 then
 				Module.Notes[CurrentPattern, x, y].Sample := CurrentSample;
 		end;
+	EndPatternUndo(uaBlockSetSample);
 	Module.SetModified;
 end;
 
