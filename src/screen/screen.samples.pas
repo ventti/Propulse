@@ -1378,12 +1378,16 @@ begin
 					i := Integer(Scn) - Integer(keyNoteC_lo) + (Integer(PatternEditor.HighOctave) * 12) + 1;
 					if i <= 36 then // go no higher than B-3
 					begin
-						with Waveform do // play selected range
-						if (not IsFocused) and (Selection.Length > 0) then
-							Module.PlaySample(i, CurrentSample, PatternEditor.Cursor.Channel, 64,
-								Selection.L, (Selection.R - Selection.L) div 2)
-						else
-							Module.PlaySample(i, CurrentSample, PatternEditor.Cursor.Channel);
+						// Only trigger on the first key press, not on OS auto-repeat,
+						// so holding a note key lets the sample play/loop instead of
+						// retriggering it continuously.
+						if not KeyIsRepeat then
+							with Waveform do // play selected range
+							if (not IsFocused) and (Selection.Length > 0) then
+								Module.PlaySample(i, CurrentSample, PatternEditor.Cursor.Channel, 64,
+									Selection.L, (Selection.R - Selection.L) div 2)
+							else
+								Module.PlaySample(i, CurrentSample, PatternEditor.Cursor.Channel);
 
 						Result := True;
 					end;

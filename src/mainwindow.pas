@@ -1427,6 +1427,7 @@ begin
 				if Assigned(KeyBind) then
 				begin
 					i := KeyBind.Shortcut.Key;
+					KeyIsRepeat := False;
 					OnKeyDown(i, KeyBind.Shortcut.Shift);
 				end;
 			end;
@@ -1471,6 +1472,7 @@ begin
 					writeln('Key=', Key, '   Shift=', sk);
 					{$ENDIF}
 *)
+					KeyIsRepeat := InputEvent.key._repeat <> 0;
 					OnKeyDown(Integer(Key), Shift);
 				end;
 			end;

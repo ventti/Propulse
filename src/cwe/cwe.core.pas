@@ -242,6 +242,9 @@ var
 	CurrentScreen: 	TCWEScreen;
 	ControlKeys: 	TKeyBindings;
 	TimerCallback: 	TTimerCallback;
+	// True when the current key event is an OS auto-repeat (held key),
+	// so handlers can avoid re-triggering one-shot actions like note playback.
+	KeyIsRepeat:	Boolean;
 
 
 implementation
