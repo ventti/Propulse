@@ -359,6 +359,10 @@ const
 	procedure Log(const S: AnsiString; const Args: array of const); overload;
 
 	function  GetDataFile(Filename: String): String;
+	// The actual build version to display: the git describe string when
+	// available (e.g. '0.10.2' or '0.10.2-1-g7df971f'), otherwise the
+	// fallback constant. Avoids showing a stale hardcoded version.
+	function  VersionString: String;
 	function  ValidFilename(const Filename: String): Boolean; inline;
 	function  SplitString(const aString, aSeparator: String; aMax: Integer = 0): TArrayOfString;
 
@@ -414,7 +418,16 @@ uses
 	Process,
     {$ENDIF}
 	ProTracker.Player,
+	BuildInfo,
 	CWE.Dialogs;
+
+function VersionString: String;
+begin
+	if Build.GitDescribe <> 'unknown' then
+		Result := Build.GitDescribe
+	else
+		Result := VERSION;
+end;
 
 procedure RememberLastEditPosition(Pattern, Order, Row, Channel, Column, ScrollPos: Byte);
 begin

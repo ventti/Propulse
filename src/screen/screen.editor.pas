@@ -318,7 +318,7 @@ begin
 
 	CurrentPattern := 0;
 
-	DefaultMessage := 'Propulse Tracker ' + ProTracker.Util.VERSION +
+	DefaultMessage := 'Propulse Tracker ' + ProTracker.Util.VersionString +
 	{$IFDEF DEBUG} ' [DEBUG]' + {$ENDIF}
 		' '#7' ' + Build.CompileDate;
 

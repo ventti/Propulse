@@ -63,8 +63,8 @@ end;
 function GetVersionText: String;
 begin
 
-	Result := 'Propulse Tracker v' + ProTracker.Util.VERSION +
-		' (' + Build.GitDescribe + ') built on ' +
+	Result := 'Propulse Tracker ' + ProTracker.Util.VersionString +
+		' built on ' +
 		Build.CompileDate + ' ' + Build.CompileTime;
 end;
 

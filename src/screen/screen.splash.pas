@@ -68,8 +68,10 @@ uses
 const
 	SCRSEP = '%R'#3'%%';
 
+	// {VERSION} is substituted at runtime with the actual build version
+	// (ProTracker.Util.VersionString), since a typed const can't call it.
 	Scroll_Text: AnsiString = '                  ' +
-	'%WPropulse Tracker ' + ProTracker.Util.VERSION + '%% � ' +
+	'%WPropulse Tracker {VERSION}%% � ' +
 	'Original by %Ghukka%%, EXTended in 2025 by %GVent%% + %GTempest%% � ' +
 	'%WPT2PLAY%% playroutine and coding help by %G8bitbubsy%% � ' +
 	'Thanks to %Gmuzzy%% � %Gwuffe%% � %GTempest%% � %GMark Knopper%% � ' +
@@ -135,7 +137,8 @@ var
 {$ENDIF}
 begin
 	Randomize;
-	ScrollText := StringReplace(Scroll_Text, '�', SCRSEP, [rfReplaceAll]);
+	ScrollText := StringReplace(Scroll_Text, '{VERSION}', ProTracker.Util.VersionString, []);
+	ScrollText := StringReplace(ScrollText, '�', SCRSEP, [rfReplaceAll]);
 	ScrollChar := 0;
 
 	{$IFDEF MIDI_DISPLAY}
@@ -227,10 +230,7 @@ begin
 		Scroll.Clear(TRANSCOLOR);
 	end;
 
-	if Build.GitDescribe <> 'unknown' then
-		Console.WriteHeader('Propulse Tracker v' + ProTracker.Util.VERSION + ' (' + Build.GitDescribe + ') '+#7+' '+ Build.CompileDate, 1)
-	else
-		Console.WriteHeader('Propulse Tracker v' + ProTracker.Util.VERSION + ' '+#7+' '+ Build.CompileDate, 1);
+	Console.WriteHeader('Propulse Tracker ' + ProTracker.Util.VersionString + ' '+#7+' '+ Build.CompileDate, 1);
 
 	Y := Console.Height - 9;
 
