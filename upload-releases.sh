@@ -33,7 +33,7 @@ VERSION=$(cat "${CI_PROJECT_DIR}/release/version.txt")
 } >/dev/null 2>&1
 
 
-for file in "$CI_PROJECT_DIR"/release/EXTended-*.zip; do
+for file in "$CI_PROJECT_DIR"/release/Propulse-*.zip; do
     filename=$(basename "${file}")
     dropbox_upload "${file}" "${PROJECT_NAME}/releases/${VERSION}/${filename}"
     dropbox_upload "${file}" "${PROJECT_NAME}/releases/latest/${filename}"
