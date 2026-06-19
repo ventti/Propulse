@@ -5,13 +5,17 @@ set -e
 rm -rf build
 rm -rf release
 
-# Clean FPC unit output cache.
-# CMake presets build multiple configurations/targets, and reusing stale .ppu/.o
-# across different compiler flags can trigger FPC internal errors.
-rm -rf src/lib/aarch64-darwin
-rm -rf src/lib/x86_64-darwin
-rm -rf src/lib/x86_64-linux
-rm -rf src/lib/x86_64-win64
+clean_fpc_units() {
+    # CMake presets reuse a per-platform unit dir (src/lib/<cpu-os>) for BOTH
+    # release and debug builds. Reusing .ppu/.o built with different compiler
+    # flags across configurations triggers FPC internal errors, so wipe them.
+    rm -rf src/lib/aarch64-darwin
+    rm -rf src/lib/x86_64-darwin
+    rm -rf src/lib/x86_64-linux
+    rm -rf src/lib/x86_64-win64
+}
+
+clean_fpc_units
 
 python3 ./tools/scripts/validate_help.py
 
@@ -20,6 +24,10 @@ PRESETS=$(cmake --list-presets=workflow 2>&1 | grep -E '^\s+"[^"]+"' | sed 's/.*
 
 # Test each workflow preset
 for PRESET in $PRESETS; do
+    # Clean the shared unit cache before every preset: release/debug of the
+    # same platform share src/lib/<cpu-os>, and mixing differently-compiled
+    # .ppu causes FPC internal errors.
+    clean_fpc_units
     cmake --workflow --preset "$PRESET"
 done
 
