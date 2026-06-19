@@ -1797,6 +1797,12 @@ var
 	i: Integer;
 	Warnings: Boolean = False;
 begin
+	// Publish the global Window reference immediately: code that runs during
+	// construction (e.g. Log -> LogScreen.Log -> Window.ProcessFrame, or a
+	// module loaded from the command line) may reference Window, which would
+	// otherwise still be nil until Create returns -> crash.
+	Window := Self;
+
 	Initialized := False;
 	QuitFlag := False;
 	Locked := True;
