@@ -72,7 +72,7 @@ const
 	// (ProTracker.Util.VersionString), since a typed const can't call it.
 	Scroll_Text: AnsiString = '                  ' +
 	'%WPropulse Tracker {VERSION}%% � ' +
-	'Original by %Ghukka%%, EXTended in 2025 by %GVent%% + %GTempest%% � ' +
+	'Original by %Ghukka%%, EXTended in 2025-2026 by %GVent%% + %GTempest%% � ' +
 	'%WPT2PLAY%% playroutine and coding help by %G8bitbubsy%% � ' +
 	'Thanks to %Gmuzzy%% � %Gwuffe%% � %GTempest%% � %GMark Knopper%% � ' +
 	'For full credits press F1 � ' +
@@ -235,7 +235,7 @@ begin
 	Y := Console.Height - 9;
 
 	Console.WriteCentered(' (C) 2016-2019 hukka (Joel Toivonen)', Y+0);
-	Console.WriteCentered(' EXTended in 2025 by Vent + Tempest', Y+1);
+	Console.WriteCentered(' EXTended in 2025-2026 by Vent + Tempest', Y+1);
 	Console.WriteCentered(' Original playroutine by 8bitbubsy (Olav Sorensen)', Y+2);
 
 	inherited;
