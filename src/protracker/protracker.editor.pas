@@ -1187,6 +1187,9 @@ procedure TPatternEditor.BufferClear(R: TRect; Masked: Boolean = False);
 var
 	x, y: Integer;
 begin
+	// Nothing marked: an empty selection has negative coords, so bail out
+	// (otherwise SetNote would be called with invalid channels).
+	if (R.Left < 0) or (R.Top < 0) then Exit;
 	BeginPatternUndo('Clear block');
 	for x := R.Left to R.Right do
 		for y := R.Top to R.Bottom do
@@ -1199,6 +1202,13 @@ procedure TPatternEditor.BufferCopy(R: TRect);
 var
 	x, y: Integer;
 begin
+	// Nothing marked: an empty selection has negative coords, which would
+	// index Module.Notes out of bounds and crash. Do nothing instead.
+	if (R.Left < 0) or (R.Top < 0) then
+	begin
+		MessageText('No selection!');
+		Exit;
+	end;
 	MessageText('Selection copied to memory.');
 	for x := R.Left to R.Right do
 		for y := R.Top to R.Bottom do
