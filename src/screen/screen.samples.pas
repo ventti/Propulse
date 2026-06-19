@@ -618,7 +618,10 @@ begin
 
 		ACTION_REPLACESAMPLE:
 			if Pos >= 0 then
-				PatternEditor.ReplaceSample(CurrentSample, Pos);
+				// Pos is a 0-based list index; ReplaceSample works on 1-based
+				// pattern sample numbers, so convert (Pos+1) to avoid an
+				// off-by-one that replaced with the previous sample.
+				PatternEditor.ReplaceSample(CurrentSample, Pos + 1);
 
 		ACTION_COPYSAMPLE:
 			if (Pos >= 0) and (Pos <> CurrentSample-1) then
