@@ -5,11 +5,24 @@ CI_PROJECT_DIR=${CI_PROJECT_DIR:-$(git rev-parse --show-toplevel)}
 PROJECT_NAME="Propulse-EXT"
 DROPBOX_UPLOADER="${CI_PROJECT_DIR}/tools/scripts/dropbox_uploader.sh"
 
+DROPBOX_CONFIG="${CI_PROJECT_DIR}/.dropboxuploader"
+
+# Without a valid config, dropbox_uploader.sh drops into an interactive OAuth
+# setup and blocks on stdin (and the mkdir block below hides it, so it looks
+# like a silent hang). Fail fast with a clear message instead.
+if [[ ! -s "${DROPBOX_CONFIG}" ]]; then
+    echo "ERROR: Dropbox config not found or empty: ${DROPBOX_CONFIG}" >&2
+    echo "Provide a configured .dropboxuploader before running this script." >&2
+    exit 1
+fi
+
+# Redirect stdin from /dev/null so the uploader can never block waiting for
+# interactive input; it will error out instead of hanging.
 dropbox_upload() {
-    "${DROPBOX_UPLOADER}" -f "${CI_PROJECT_DIR}/.dropboxuploader" upload "${1}" "${2}"
+    "${DROPBOX_UPLOADER}" -f "${DROPBOX_CONFIG}" upload "${1}" "${2}" </dev/null
 }
 dropbox_mkdir() {
-    "${DROPBOX_UPLOADER}" -f "${CI_PROJECT_DIR}/.dropboxuploader" mkdir "${1}"
+    "${DROPBOX_UPLOADER}" -f "${DROPBOX_CONFIG}" mkdir "${1}" </dev/null
 }
 
 VERSION=$(cat "${CI_PROJECT_DIR}/release/version.txt")
