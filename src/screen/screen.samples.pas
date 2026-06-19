@@ -553,6 +553,7 @@ procedure TSampleScreen.DialogCallback(ID: Word; Button: TDialogButton;
 var
 	Sample: TSample;
 	ctrl: TCWEControl;
+	SwapUndo: TSampleUndoEntry;
 	Pos, X1, X2: Integer;
 begin
 	if Dlg = nil then Exit;
@@ -603,14 +604,14 @@ begin
 		end;
 
 		ACTION_SWAPSAMPLES:
-			if Pos >= 0 then
+			if (Pos >= 0) and (Pos <> CurrentSample-1) then
 			begin
+				// One undo entry storing both slots; undone by re-swapping.
 				if not SampleEdit.IsUndoInProgress then
 				begin
-					// Create undo for both samples being swapped
-					SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSwap, CurrentSample, 'Swap samples'));
-					if Pos+1 <> CurrentSample then
-						SampleEdit.AddUndoEntry(SampleEdit.CreateUndoEntry(uaSwap, Pos+1, 'Swap samples'));
+					SwapUndo := SampleEdit.CreateUndoEntry(uaSwap, CurrentSample, 'Swap samples');
+					SwapUndo.SwapWithIndex := Pos + 1;
+					SampleEdit.AddUndoEntry(SwapUndo);
 				end;
 				ExchangeSamples(CurrentSample-1, Pos, True, True);
 				CurrentSample := Pos+1;

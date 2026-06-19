@@ -85,6 +85,7 @@ type
 	TSampleUndoEntry = record
 		ActionType: TSampleUndoActionType;
 		SampleIndex: Byte;
+		SwapWithIndex: Byte; // second slot for uaSwap (1-based)
 		BackupFilename: AnsiString;
 		Description: AnsiString;
 		// Cursor positions for restoring after undo/redo
@@ -1049,6 +1050,7 @@ var
 begin
 	Result.ActionType := ActionType;
 	Result.SampleIndex := SampleIndex;
+	Result.SwapWithIndex := 0;
 	Result.Description := Description;
 	Result.BackupFilename := '';
 	Result.OldName := '';
@@ -1113,9 +1115,10 @@ begin
 	// Clear redo stack when new action is performed
 	ClearRedo;
 	
-	// For name changes, we don't need file backups (name is stored in OldName)
-	// For other operations, save sample backup to temp file
-	if Entry.ActionType <> uaSetName then
+	// For name changes and swaps we don't need file backups (name is in
+	// OldName; a swap is undone by re-swapping). For other operations save a
+	// sample backup to a temp file.
+	if not (Entry.ActionType in [uaSetName, uaSwap]) then
 	begin
 		BackupFile := SaveSampleBackup(Entry.SampleIndex);
 		if BackupFile = '' then Exit; // Failed to save backup
@@ -1321,6 +1324,14 @@ begin
 			end;
 		end
 		else
+		if Entry.ActionType = uaSwap then
+		begin
+			// A swap is its own inverse: re-running ExchangeSamples swaps the two
+			// slots back AND reverts the pattern note remapping in one step.
+			if Assigned(SampleScreen) then
+				SampleScreen.ExchangeSamples(Entry.SampleIndex - 1, Entry.SwapWithIndex - 1, True, True);
+		end
+		else
 		begin
 			// Restore sample from backup (for data changes)
 			// IMPORTANT: For redo to work, we need to save the CURRENT state before restoring
@@ -1465,6 +1476,13 @@ begin
 					end;
 				end;
 			end;
+		end
+		else
+		if Entry.ActionType = uaSwap then
+		begin
+			// Re-run the swap to redo it (ExchangeSamples is symmetric).
+			if Assigned(SampleScreen) then
+				SampleScreen.ExchangeSamples(Entry.SampleIndex - 1, Entry.SwapWithIndex - 1, True, True);
 		end
 		else
 		begin
