@@ -379,7 +379,12 @@ var
 	c, r: Integer;
 begin
 	Channels := NumChannels;
-	c := Max(NumChannels, AMOUNT_CHANNELS-1);
+	// Always allocate at least AMOUNT_CHANNELS channels: the pattern converter
+	// (ProcessConvertedPatterns / FindFreeEffectSlot) always reads channels
+	// 0..AMOUNT_CHANNELS-1. Using AMOUNT_CHANNELS-1 here left only 3 slots for
+	// sparse patterns (e.g. split halves of >64-row patterns that use few
+	// channels), causing an out-of-bounds access -> crash.
+	c := Max(NumChannels, AMOUNT_CHANNELS);
 
 	Rows := NumRows;
 	UsedChannels := 0;
