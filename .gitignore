@@ -50,6 +50,7 @@ Temporary Items
 backup
 lib
 Propulse
+Propulse-debug
 debug\.txt
 *.lps
 *.bak
