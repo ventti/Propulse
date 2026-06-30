@@ -198,6 +198,7 @@ type
 		function 	IsValidPosition(Pattern, Channel, Row: Byte): Boolean;
 		function 	SetNote(Pattern, Channel, Row: Byte; Note: TNote;
 					Masked: Boolean = False): Boolean;
+		procedure	ApplyEditMask(var Note: TNote);
 		function 	PrepareSelectionForRender: Byte;
 
 		procedure 	InsertNote(Pattern, Channel, Row: Byte; WholePattern: Boolean = False);
@@ -992,6 +993,36 @@ begin
 	end;
 end;
 
+// Apply the per-column edit masks to Note, carrying the last entered values.
+// Note must already hold the destination cell's existing data; masked-off (or
+// type-mismatched) columns are left untouched, masked-on columns are overwritten.
+// Volume and Effect share the single Command/Parameter slot (volume = command $C),
+// so only the type that LastNote currently holds can be carried.
+procedure TPatternEditor.ApplyEditMask(var Note: TNote);
+begin
+	if EditMask[EM_SAMPLE] then
+		Note.Sample := LastNote.Sample;
+
+	if LastNote.Command = $C then
+	begin
+		// remembered slot value is a VOLUME
+		if EditMask[EM_VOLUME] then
+		begin
+			Note.Command   := $C;
+			Note.Parameter := LastNote.Parameter;
+		end;
+	end
+	else
+	begin
+		// remembered slot value is an EFFECT (or empty)
+		if EditMask[EM_EFFECT] then
+		begin
+			Note.Command   := LastNote.Command;
+			Note.Parameter := LastNote.Parameter;
+		end;
+	end;
+end;
+
 procedure TPatternEditor.InsertNote(Pattern, Channel, Row: Byte; WholePattern: Boolean = False);
 var
 	Y, ch1, ch2, ch: Integer;
@@ -1749,34 +1780,21 @@ begin
 						end
 						else
 						begin
-							// Create new note with changes
-							LastNote := Cursor.Note^;
-							LastNote.Pitch := n + 1;
-							if EditMask[EM_SAMPLE] then
-								LastNote.Sample := CurrentSample;
+							// Update the "last entered" memory: the new note adopts
+							// the current pitch and selected sample, but keeps the
+							// remembered volume/effect slot so it can be carried.
+							LastNote.Pitch  := n + 1;
+							LastNote.Sample := CurrentSample;
 
-							if EditMask[EM_VOLUME] then
-							begin
-								if LastNote.Command = $C then
-								begin
-									LastNote.Command   := LastNote.Command;
-									LastNote.Parameter := LastNote.Parameter;
-								end
-								else
-								begin
-									LastNote.Command   := $0;
-									LastNote.Parameter := $0;
-								end;
-							end;
-							if EditMask[EM_EFFECT] then
-							begin
-								LastNote.Command   := LastNote.Command;
-								LastNote.Parameter := LastNote.Parameter;
-							end;
+							// Build the new note from the existing cell, replace the
+							// pitch, then carry the masked-on columns over it.
+							NewNote := Cursor.Note^;
+							NewNote.Pitch := n + 1;
+							ApplyEditMask(NewNote);
 
 							// Use SetNote to track undo
-							SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, LastNote);
-							Module.PlayNote(@LastNote, Cursor.Channel);
+							SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, NewNote);
+							Module.PlayNote(@NewNote, Cursor.Channel);
 							Advance;
 						end; // not Shift
 
@@ -2111,27 +2129,8 @@ begin
 				COL_NOTE:
 				begin
 					NewNote := Cursor.Note^;
-					if EditMask[EM_SAMPLE] then
-						NewNote.Sample := LastNote.Sample;
-					if EditMask[EM_VOLUME] then
-					begin
-						if LastNote.Command = $C then
-						begin
-							NewNote.Command   := LastNote.Command;
-							NewNote.Parameter := LastNote.Parameter;
-						end
-						else
-						begin
-							NewNote.Command   := $0;
-							NewNote.Parameter := $0;
-						end;
-					end;
-					if EditMask[EM_EFFECT] then
-					begin
-						NewNote.Command   := LastNote.Command;
-						NewNote.Parameter := LastNote.Parameter;
-					end;
 					NewNote.Pitch := LastNote.Pitch;
+					ApplyEditMask(NewNote);
 					SetNote(CurrentPattern, Cursor.Channel, Cursor.Row, NewNote);
 					Module.PlayNote(Cursor.Note, Cursor.Channel);
 				end;
