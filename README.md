@@ -1,66 +1,48 @@
-# Propulse Tracker
+# Propulse Tracker (Extended)
 
-A crossplatform tracker for making Amiga ProTracker compatible
-tracker modules using an Impulse/Schism Tracker style user interface.
+A crossplatform tracker for making Amiga ProTracker compatible modules using an
+Impulse/Schism Tracker style user interface.
 
-Should build and run on Windows, Linux and macOS.
+This is the **Extended** fork, with an undo/redo system, a mouse-driven sample
+editor, autosave, module notes, expanded import support and more. See the
+[changelog](CHANGELOG.md) for the full list of changes.
+
+A crossplatform codebase that runs on Windows, Linux and macOS. Prebuilt
+binaries are currently produced for macOS (ARM64) and Windows x64.
 
 ![Editor screenshot](https://github.com/hukkax/Propulse/blob/trunk/docs/images/ss1.png)
 
-Features:
+## Features
 
-- Super accurate playback engine based on work by 8bitbubsy (itself based on a disassembly of the original Amiga ProTracker); things like black_queen.mod and MPT test cases play correctly
-- Familiar Impulse/Schism Trackerish interface with familiar keyboard commands
-- User configurable keybindings, colors, fonts of any size, even screen layouts...
-- WAV export with optional looping and fade out
-- Integrated mouse-driven sample editor 
+- Super accurate playback engine based on work by 8bitbubsy (itself based on a
+  disassembly of the original Amiga ProTracker); things like `black_queen.mod`
+  and the MPT test cases play correctly.
+- Familiar Impulse/Schism Tracker-ish interface with familiar keyboard commands.
+- Full undo/redo in the pattern editor, order list and sample editor.
+- Mouse-based block selection in the pattern editor and mouse-driven waveform
+  editing in the sample editor.
+- Autosave, plus per-module notes/metadata.
+- Flexible playback controls for resuming and following the song during editing.
+- User-configurable keybindings, colors, fonts of any size, even screen
+  layouts.
+- WAV export with optional looping and fade out.
 
-Supported formats:
+## Supported formats
 
-- MOD - Loads and saves Amiga ProTracker modules (including load support for 15-sample Ultimate SoundTracker mods, NoiseTracker, and PowerPacked files)
-- P61A - Imports The Player 6.1a crunched modules
-- IT and S3M  - Imports Impulse Tracker and Scream Tracker 3 modules
-- Samples: raw, IFF 8SVX, WAV, MP3 & Ogg Vorbis (when using BASS)
+- **MOD** — loads and saves Amiga ProTracker modules (including load support for
+  15-sample Ultimate SoundTracker mods, NoiseTracker, and PowerPacked files).
+- **P61A** — imports The Player 6.1a crunched modules.
+- **IT and S3M** — imports Impulse Tracker and Scream Tracker 3 modules
+  (including tempo/speed from the file headers).
+- **Samples** — raw, IFF 8SVX, WAV, MP3 & Ogg Vorbis (MP3/Ogg require BASS).
 
 ![Sample Editor screenshot](https://github.com/hukkax/Propulse/blob/trunk/docs/images/ss2.png)
 
 ![Settings screen screenshot](https://github.com/hukkax/Propulse/blob/trunk/docs/images/ss3.png)
 
-> **Note:** The build instructions below are additions to the original tool.
+## Building & contributing
 
-## Building
+Prebuilt binaries are currently produced for macOS (ARM64) and Windows x64.
 
-### macOS (ARM64)
-
-Quick setup: Install Free Pascal Compiler and optionally for crossbuild, necessary tools and RTL files using [fpcupdeluxe](https://github.com/LongDirtyAnimAlf/fpcupdeluxe) as follows:
-
-```bash
-./install-fpc-mac.sh
-./bootstrap-mac.sh
-make
-```
-
-If you are all-in with Pascal development, Lazarus might be The IDE for you. 
-
-Visual Studio Code or Cursor
-
-### Cross-compilation
-
-Propulse is available for Mac arm64, Windows and Linux 64bit, both arm64 and x86-64. x86 support is deliberately dropped. Why? It's 2025. That's why.
-
-Examples:
-
-
-### Libraries
-
-Necessary libraries are included in [libs](libs) folder.
-
-
-See [docs/building.txt](docs/building.txt) for installation instructions.
-
-Then build with:
-```bash
-make TARGET=windows-x64 release
-```
-
-See [docs/building.txt](docs/building.txt) for detailed build instructions for all platforms and cross-compilation support.
+If you want to build from source, contribute changes, or cut a release, see the
+[Contributing guide](CONTRIBUTING.md).
