@@ -24,6 +24,21 @@ if [[ ! -s "${DROPBOX_CONFIG}" ]]; then
     exit 1
 fi
 
+# Validate all required build artifacts up front so we never do a partial
+# upload (previously a missing CHANGELOG.txt failed only after the zips had
+# already been pushed). These are produced by build-all-releases.sh and
+# generate-changelog.sh; run release.sh to do the whole pipeline in order.
+if ! ls "${CI_PROJECT_DIR}"/release/Propulse-*.zip >/dev/null 2>&1; then
+    echo "ERROR: no release/Propulse-*.zip found. Run build-all-releases.sh first." >&2
+    exit 1
+fi
+for req in version.txt CHANGELOG.txt; do
+    if [[ ! -f "${CI_PROJECT_DIR}/release/${req}" ]]; then
+        echo "ERROR: missing release/${req}. Run build-all-releases.sh and generate-changelog.sh first (or use release.sh)." >&2
+        exit 1
+    fi
+done
+
 # Redirect stdin from /dev/null so the uploader can never block waiting for
 # interactive input; it will error out instead of hanging.
 dropbox_upload() {
