@@ -83,33 +83,14 @@ fi
 
 ./build-all-releases.sh
 ./generate-changelog.sh
-./upload-releases.sh
+./upload-release-dropbox.sh
 
-git push
-if [[ -n "$TAG" ]]; then
-    git push origin "$TAG"
-fi
-
-# Full (non-pre) release: create the GitHub release from the X.Y.Z tag.
-# This covers both a bumped full release and a promoted pre-release.
-# Idempotent and non-interactive: if the release already exists (e.g. a
-# previous run failed mid-way), just (re)upload the assets; otherwise create
-# it. Assets are attached by full path (gh resolves bare filenames relative
-# to the cwd, not release/).
+# Full (non-pre) release: create a GitHub release from the X.Y.Z tag. This
+# covers both a bumped full release and a promoted pre-release.
+FULL=false
 if $PROMOTE || ( ! $PRE && [[ -n "$BUMP" ]] ); then
-    if gh release view "${NEWVER}" >/dev/null 2>&1; then
-        echo "GitHub release ${NEWVER} already exists; uploading assets."
-        gh release upload "${NEWVER}" \
-            "$CI_PROJECT_DIR"/release/Propulse-*.zip --clobber
-    else
-        # Title is just the version; notes are left empty on purpose so commit
-        # messages never leak into the release text (use --notes "" rather than
-        # --generate-notes). Edit the notes on GitHub afterwards if desired.
-        gh release create "${NEWVER}" \
-            "$CI_PROJECT_DIR"/release/Propulse-*.zip \
-            --title "${NEWVER}" \
-            --notes "" \
-            --verify-tag \
-            --latest
-    fi
+    FULL=true
 fi
+
+# Push commits/tags and, when FULL, create/update the GitHub release.
+./upload-release-github.sh "$TAG" "$NEWVER" "$FULL"
