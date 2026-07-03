@@ -54,10 +54,23 @@ the work done on top of the original tool, grouped by area rather than by releas
 - Enough channels are allocated for split patterns to prevent IT import crashes.
 - Dropped files with non-ASCII names now load correctly on Windows.
 
-### Module metadata
+### Module metadata / notes
 
-- New metadata system with a notes dialog and screen.
-- Metadata is stored when saving modules.
+- Ticket-style **notes** for a song (`Shift+F4`): a per-song TODO list,
+  descriptions, sheet-music snippets and ideas — meant to replace the scattered
+  text files and paper notes that pile up during composition, and to keep that
+  information linked to where it actually matters.
+- Each note can **point at the spot it's about** — a pattern cell
+  (channel/row/column), an order position, a sample, or a pattern selection — and
+  **Go To** jumps the editor straight there.
+- Notes are ticket-like: a stable, always-increasing ID plus a status
+  (`open` / `todo` / `fix` / `wip` / `done` / `old` / `info`). Next/previous
+  navigation skips `old` and `done`; deleting a note warns first and offers to
+  mark it `old` instead, so the running history is preserved.
+- The body is an ordinary multiline text editor (cursor movement, normal ASCII).
+- Stored in a **sidecar** file (`<module>.json`) next to the module — the notes
+  do **not** ship inside the song file, so they stay private unless you choose to
+  share the sidecar too.
 
 ### Autosave & robustness
 
@@ -97,5 +110,5 @@ the work done on top of the original tool, grouped by area rather than by releas
 
 ### Branding
 
-- Marked as the Extended fork: "EXTENDED" splash text, credits for vent and the
-  Tempest fork, and an updated project URL.
+- Marked as the Extended fork to distinguish from the original Propulse Tracker. 
+- Updated project URL

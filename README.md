@@ -27,6 +27,17 @@ binaries are currently produced for macOS (ARM64) and Windows x64.
   layouts.
 - WAV export with optional looping and fade out.
 
+## Notes
+
+Ticket-style notes attached to a song (`Shift+F4`) for TODOs, descriptions,
+sheet-music snippets and ideas — a home for the scribbles that would otherwise
+end up in scattered text files and on paper, kept linked to where they matter.
+Each note can point at the exact spot it's about (a pattern cell, an order
+position or a sample) and **Go To** jumps you there. Notes carry a status
+(`open`/`todo`/`fix`/`wip`/`done`/`old`/`info`) and live in a sidecar
+`<module>.json`, so they never ship inside the module itself unless you share
+that file too.
+
 ## Supported formats
 
 - **MOD** — loads and saves Amiga ProTracker modules (including load support for
