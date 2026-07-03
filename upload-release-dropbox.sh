@@ -1,4 +1,12 @@
 #!/bin/bash
+case "${1:-}" in
+    -h|--help)
+        echo "Usage: ./upload-release-dropbox.sh" >&2
+        echo "" >&2
+        echo "Upload the built release/ artifacts to Dropbox. Requires a configured" >&2
+        echo ".dropboxuploader in the project root. Takes no arguments." >&2
+        exit 0 ;;
+esac
 set -exuo pipefail
 
 CI_PROJECT_DIR=${CI_PROJECT_DIR:-$(git rev-parse --show-toplevel)}

@@ -1,4 +1,13 @@
 #!/bin/bash
+case "${1:-}" in
+    -h|--help)
+        echo "Usage: ./build-all-releases.sh" >&2
+        echo "" >&2
+        echo "Clean-build and package every release target (wiping build/, release/" >&2
+        echo "and the per-platform FPC unit dirs first), then zip the artifacts into" >&2
+        echo "release/. Takes no arguments." >&2
+        exit 0 ;;
+esac
 set -e
 
 # Clean build and release directories

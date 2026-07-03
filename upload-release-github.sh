@@ -8,6 +8,18 @@
 #
 # Normally invoked by release.sh, but can be run standalone to (re)push and
 # (re)publish a release; the GitHub release step is idempotent.
+case "${1:-}" in
+    -h|--help)
+        echo "Usage: ./upload-release-github.sh [TAG] [NEWVER] [FULL]" >&2
+        echo "" >&2
+        echo "  TAG     tag to push (may be empty for a pre-release with no new tag)" >&2
+        echo "  NEWVER  X.Y.Z version for the GitHub release (required when FULL=true)" >&2
+        echo "  FULL    \"true\" to create/update a GitHub release from the X.Y.Z tag" >&2
+        echo "" >&2
+        echo "Pushes commits/tags and, when FULL, creates or updates the GitHub" >&2
+        echo "release (idempotent). Normally invoked by release.sh." >&2
+        exit 0 ;;
+esac
 set -e
 CI_PROJECT_DIR=$(git rev-parse --show-toplevel)
 cd "$CI_PROJECT_DIR"

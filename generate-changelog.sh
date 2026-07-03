@@ -1,4 +1,11 @@
 #!/bin/bash
+case "${1:-}" in
+    -h|--help)
+        echo "Usage: ./generate-changelog.sh" >&2
+        echo "" >&2
+        echo "Generate release/CHANGELOG.txt from the git log. Takes no arguments." >&2
+        exit 0 ;;
+esac
 set -euo pipefail
 
 PROJECT_DIR=$(git rev-parse --show-toplevel)
