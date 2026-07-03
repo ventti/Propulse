@@ -132,6 +132,8 @@ type
 		function 	KeyDown(var Key: Integer; Shift: TShiftState): Boolean; override;
 		function 	LabelClicked(Sender: TCWEControl;
 					Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean;
+		function 	ChannelLabelClicked(Sender: TCWEControl;
+					Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean;
 
 		procedure 	Callback_AskDefaultTempo(ID: Word;
 					ModalResult: TDialogButton; Tag: Integer; Data: Variant; Dlg: TCWEDialog);
@@ -468,6 +470,10 @@ begin
 		ctrl.ColorFore := TConsole.COLOR_3DLIGHT;
 		ctrl.ColorBack := TConsole.COLOR_3DDARK;
 		(ctrl as TCWELabel).Alignment := ALIGN_CENTER;
+		// Click the title to mute/unmute the channel (Ctrl+Left or right-click
+		// solos it, muting/unmuting all the others).
+		ctrl.WantMouse := True;
+		ctrl.OnMouseDown := ChannelLabelClicked;
 		lblChannels[i] := TCWELabel(ctrl);
 	end;
 
@@ -794,6 +800,29 @@ begin
 		lblOctave.SetCaption('Hi')
 	else
 		lblOctave.SetCaption('Lo');
+end;
+
+function TEditorScreen.ChannelLabelClicked(Sender: TCWEControl;
+	Button: TMouseButton; X, Y: Integer; P: TPoint): Boolean;
+var
+	i, ch: Integer;
+begin
+	Result := True; // always consume, so right-click never opens a context menu
+	ch := -1;
+	for i := 0 to AMOUNT_CHANNELS-1 do
+		if Sender = lblChannels[i] then
+		begin
+			ch := i;
+			Break;
+		end;
+	if ch < 0 then Exit;
+
+	// Left click toggles this channel; Ctrl+Left or right-click solos it
+	// (mutes/unmutes all the other channels).
+	if (Button = mbRight) or ((Button = mbLeft) and (ssCtrl in GetShiftState)) then
+		ToggleChannelSolo(ch)
+	else if Button = mbLeft then
+		ToggleChannel(ch);
 end;
 
 procedure TEditorScreen.ToggleChannel(Channel: Byte);
