@@ -1068,7 +1068,7 @@ end;
 
 procedure TEditorScreen.Paint;
 const
-	CHSEP = 253; // 168
+	CHSEP = 168; // left-border glyph used as the channel separator
 var
 	x, y: Integer;
 begin
