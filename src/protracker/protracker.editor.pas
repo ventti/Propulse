@@ -312,7 +312,7 @@ begin
 	WantHover := False;
 
 	EditMask[EM_SAMPLE] := True;
-	EditMask[EM_VOLUME] := True;
+	EditMask[EM_VOLUME] := False;
 	EditMask[EM_EFFECT] := False;
 
 	{$IFDEF TIMING}
