@@ -22,7 +22,7 @@ const
 	METADATA_VERSION = 1;
 
 type
-	TMetadataStatus = (msOpen, msTodo, msFixme, msWip, msDone, msClosed);
+	TMetadataStatus = (msOpen, msTodo, msFixme, msWip, msDone, msClosed, msInfo);
 
 	TMetadataPointerType = (ptPattern, ptOrderList, ptSample, ptPatternRange);
 
@@ -31,9 +31,10 @@ type
 		Pattern: Byte;        // For pattern/range
 		Order: Byte;          // For orderlist
 		Sample: Byte;         // For sample
-		Channel: Byte;        // For pattern range
-		RowStart: Byte;       // For pattern range
+		Channel: Byte;        // For pattern (cursor) / range
+		RowStart: Byte;       // For pattern (cursor row) / range
 		RowEnd: Byte;         // For pattern range
+		Column: Byte;         // For pattern (cursor column)
 	end;
 
 	TMetadataEntry = record
@@ -46,6 +47,12 @@ type
 		Status: TMetadataStatus;
 	end;
 
+	// A whole-list snapshot used for undo/redo (the entry set is small).
+	TMetaSnapshot = record
+		Entries: array of TMetadataEntry;
+		NextID: Integer;
+	end;
+
 	TSongMetadata = class
 	private
 		FEntries: TList<TMetadataEntry>;
@@ -55,6 +62,11 @@ type
 		FLock: TCriticalSection;
 		FActiveEntriesCache: array of Integer;
 		FCacheValid: Boolean;
+		FUndoStack: array of TMetaSnapshot;
+		FRedoStack: array of TMetaSnapshot;
+
+		function  TakeSnapshot: TMetaSnapshot;
+		procedure RestoreSnapshot(const Snap: TMetaSnapshot);
 
 		function GetMetadataFilename: String;
 		function PointerToJSON(const Ptr: TMetadataPointer): TJSONObject;
@@ -79,7 +91,15 @@ type
 			const Pointer: TMetadataPointer; Status: TMetadataStatus = msOpen): Integer;
 		procedure UpdateEntry(ID: Integer; const Title, Body: AnsiString;
 			Status: TMetadataStatus);
+		procedure UpdatePointer(ID: Integer; const Ptr: TMetadataPointer);
 		procedure DeleteEntry(ID: Integer);
+
+		// Undo/redo (whole-list snapshots). Call PushUndo before a mutation.
+		procedure PushUndo;
+		function  Undo: Boolean;
+		function  Redo: Boolean;
+		function  CanUndo: Boolean;
+		function  CanRedo: Boolean;
 
 		function GetEntry(ID: Integer): TMetadataEntry;
 		function GetEntryCount: Integer;
@@ -154,6 +174,7 @@ begin
 		msWip:    Result := 'wip';
 		msDone:   Result := 'done';
 		msClosed: Result := 'closed';
+		msInfo:   Result := 'info';
 	else
 		Result := 'open';
 	end;
@@ -179,6 +200,9 @@ begin
 	if Lower = 'closed' then
 		Result := msClosed
 	else
+	if Lower = 'info' then
+		Result := msInfo
+	else
 		Result := msOpen;
 end;
 
@@ -190,6 +214,9 @@ begin
 		begin
 			Result.Add('type', 'pattern');
 			Result.Add('pattern', Ptr.Pattern);
+			Result.Add('channel', Ptr.Channel);
+			Result.Add('row', Ptr.RowStart);
+			Result.Add('column', Ptr.Column);
 		end;
 		ptOrderList:
 		begin
@@ -244,6 +271,9 @@ begin
 	begin
 		Result.PointerType := ptPattern;
 		Result.Pattern := Obj.Get('pattern', 0);
+		Result.Channel := Obj.Get('channel', 0);
+		Result.RowStart := Obj.Get('row', 0);
+		Result.Column := Obj.Get('column', 0);
 	end;
 end;
 
@@ -270,7 +300,7 @@ begin
 	for i := 0 to FEntries.Count - 1 do
 	begin
 		Entry := FEntries[i];
-		if Entry.Status <> msClosed then
+		if not (Entry.Status in [msClosed, msDone]) then
 		begin
 			SetLength(Result, Length(Result) + 1);
 			Result[High(Result)] := i;
@@ -499,6 +529,12 @@ begin
 
 			// Validate and fix IDs
 			ValidateAndFixIDs;
+			// Honor a persisted running counter so ticket numbers are never reused,
+			// even if the highest-numbered note was deleted (ValidateAndFixIDs only
+			// guarantees MaxID+1).
+			if (JSONData is TJSONObject) and
+			   (TJSONObject(JSONData).Get('next_id', 0) > FNextID) then
+				FNextID := TJSONObject(JSONData).Get('next_id', 0);
 			InvalidateCache;
 		finally
 			JSONData.Free;
@@ -544,6 +580,7 @@ begin
 		try
 			RootObj.Add('version', METADATA_VERSION);
 			RootObj.Add('module_hash', ''); // Optional, can be filled later
+			RootObj.Add('next_id', FNextID); // Persist running counter so IDs are never reused
 
 			EntriesArray := TJSONArray.Create;
 			for i := 0 to FEntries.Count - 1 do
@@ -656,9 +693,10 @@ begin
 		if FEntries.Count = 90 then
 			Log(TEXT_WARNING + Format('Approaching metadata limit: %d of %d entries', [FEntries.Count, MAX_METADATA_ENTRIES]));
 
-		// Trim and validate
+		// Trim the title; keep the body verbatim (free 2D text canvas — leading/
+		// trailing blank lines and space padding are meaningful).
 		TitleTrimmed := Copy(Trim(Title), 1, MAX_TITLE_LENGTH);
-		BodyTrimmed := Copy(Trim(Body), 1, MAX_BODY_LENGTH);
+		BodyTrimmed := Copy(Body, 1, MAX_BODY_LENGTH);
 
 		if not ValidatePointer(Pointer) then
 		begin
@@ -698,13 +736,40 @@ begin
 			begin
 				Entry := FEntries[i];
 				TitleTrimmed := Copy(Trim(Title), 1, MAX_TITLE_LENGTH);
-				BodyTrimmed := Copy(Trim(Body), 1, MAX_BODY_LENGTH);
+				// Do NOT trim the body: the notes body is a free 2D text canvas, so
+				// leading/trailing blank lines and space padding are meaningful layout.
+				BodyTrimmed := Copy(Body, 1, MAX_BODY_LENGTH);
 
 				Entry.Title := TitleTrimmed;
 				Entry.Body := BodyTrimmed;
 				Entry.Status := Status;
 				Entry.UpdatedAt := Now;
 
+				FEntries[i] := Entry;
+				InvalidateCache;
+				Exit;
+			end;
+		end;
+	finally
+		FLock.Leave;
+	end;
+end;
+
+procedure TSongMetadata.UpdatePointer(ID: Integer; const Ptr: TMetadataPointer);
+var
+	i: Integer;
+	Entry: TMetadataEntry;
+begin
+	if not ValidatePointer(Ptr) then Exit;
+	FLock.Enter;
+	try
+		for i := 0 to FEntries.Count - 1 do
+		begin
+			if FEntries[i].ID = ID then
+			begin
+				Entry := FEntries[i];
+				Entry.Pointer := Ptr;
+				Entry.UpdatedAt := Now;
 				FEntries[i] := Entry;
 				InvalidateCache;
 				Exit;
@@ -770,6 +835,105 @@ begin
 	Result := FEntries;
 end;
 
+// ==========================================================================
+// Undo / redo (whole-list snapshots; the entry set is small)
+// ==========================================================================
+
+function TSongMetadata.TakeSnapshot: TMetaSnapshot;
+var
+	i: Integer;
+begin
+	SetLength(Result.Entries, FEntries.Count);
+	for i := 0 to FEntries.Count - 1 do
+		Result.Entries[i] := FEntries[i];
+	Result.NextID := FNextID;
+end;
+
+procedure TSongMetadata.RestoreSnapshot(const Snap: TMetaSnapshot);
+var
+	i: Integer;
+begin
+	FEntries.Clear;
+	for i := 0 to High(Snap.Entries) do
+		FEntries.Add(Snap.Entries[i]);
+	FNextID := Snap.NextID;
+	InvalidateCache;
+end;
+
+procedure TSongMetadata.PushUndo;
+const
+	MAX_UNDO = 100;
+var
+	n, i: Integer;
+begin
+	FLock.Enter;
+	try
+		n := Length(FUndoStack);
+		if n >= MAX_UNDO then
+		begin
+			// Drop the oldest snapshot.
+			for i := 1 to n - 1 do
+				FUndoStack[i - 1] := FUndoStack[i];
+			Dec(n);
+			SetLength(FUndoStack, n);
+		end;
+		SetLength(FUndoStack, n + 1);
+		FUndoStack[n] := TakeSnapshot;
+		SetLength(FRedoStack, 0); // a new action invalidates redo
+	finally
+		FLock.Leave;
+	end;
+end;
+
+function TSongMetadata.Undo: Boolean;
+var
+	n: Integer;
+begin
+	Result := False;
+	FLock.Enter;
+	try
+		n := Length(FUndoStack);
+		if n = 0 then Exit;
+		// Current state -> redo, then restore the top undo snapshot.
+		SetLength(FRedoStack, Length(FRedoStack) + 1);
+		FRedoStack[High(FRedoStack)] := TakeSnapshot;
+		RestoreSnapshot(FUndoStack[n - 1]);
+		SetLength(FUndoStack, n - 1);
+		Result := True;
+	finally
+		FLock.Leave;
+	end;
+end;
+
+function TSongMetadata.Redo: Boolean;
+var
+	n: Integer;
+begin
+	Result := False;
+	FLock.Enter;
+	try
+		n := Length(FRedoStack);
+		if n = 0 then Exit;
+		SetLength(FUndoStack, Length(FUndoStack) + 1);
+		FUndoStack[High(FUndoStack)] := TakeSnapshot;
+		RestoreSnapshot(FRedoStack[n - 1]);
+		SetLength(FRedoStack, n - 1);
+		Result := True;
+	finally
+		FLock.Leave;
+	end;
+end;
+
+function TSongMetadata.CanUndo: Boolean;
+begin
+	Result := Length(FUndoStack) > 0;
+end;
+
+function TSongMetadata.CanRedo: Boolean;
+begin
+	Result := Length(FRedoStack) > 0;
+end;
+
 function TSongMetadata.GetCurrentPointer: TMetadataPointer;
 var
 	Sel: TRect;
@@ -808,6 +972,9 @@ begin
 		try
 			Result.PointerType := ptPattern;
 			Result.Pattern := CurrentPattern;
+			Result.Channel := PatternEditor.Cursor.Channel;
+			Result.RowStart := PatternEditor.Cursor.Row;
+			Result.Column := Ord(PatternEditor.Cursor.Column);
 			Exit;
 		except
 			// If CurrentPattern access fails, continue to next check
@@ -837,8 +1004,22 @@ begin
 end;
 
 procedure TSongMetadata.NavigateToPointer(const Ptr: TMetadataPointer);
+var
+	ch, rw, re: Integer;
 begin
 	if not Assigned(Module) then Exit;
+
+	// Clamp positions: pointers can come from imported modules that had more
+	// channels / rows than a ProTracker pattern, so guard against range errors.
+	ch := Ptr.Channel;
+	if ch < 0 then ch := 0;
+	if ch > AMOUNT_CHANNELS - 1 then ch := AMOUNT_CHANNELS - 1;
+	rw := Ptr.RowStart;
+	if rw < 0 then rw := 0;
+	if rw > 63 then rw := 63;
+	re := Ptr.RowEnd;
+	if re < rw then re := rw;
+	if re > 63 then re := 63;
 
 	case Ptr.PointerType of
 		ptPattern:
@@ -848,8 +1029,10 @@ begin
 				Editor.SelectPattern(Ptr.Pattern);
 				if Assigned(PatternEditor) then
 				begin
-					PatternEditor.Cursor.Row := 0;
-					PatternEditor.Cursor.Channel := 0;
+					PatternEditor.Cursor.Row := rw;
+					PatternEditor.Cursor.Channel := ch;
+					if Ptr.Column <= Ord(High(EditColumn)) then
+						PatternEditor.Cursor.Column := EditColumn(Ptr.Column);
 					PatternEditor.ValidateCursor;
 					PatternEditor.Paint;
 				end;
@@ -882,11 +1065,9 @@ begin
 				Editor.SelectPattern(Ptr.Pattern);
 				if Assigned(PatternEditor) then
 				begin
-					PatternEditor.Cursor.Row := Ptr.RowStart;
-					PatternEditor.Cursor.Channel := Ptr.Channel;
-					PatternEditor.Selection := Types.Rect(
-						Ptr.Channel, Ptr.RowStart,
-						Ptr.Channel, Ptr.RowEnd);
+					PatternEditor.Cursor.Row := rw;
+					PatternEditor.Cursor.Channel := ch;
+					PatternEditor.Selection := Types.Rect(ch, rw, ch, re);
 					PatternEditor.ValidateCursor;
 					PatternEditor.Paint;
 				end;
