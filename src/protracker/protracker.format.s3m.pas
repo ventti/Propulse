@@ -81,6 +81,7 @@ begin
 		if not InRange(V, 1, 36) then
 		begin
 			Inc(Conversion.Missed.Notes);
+			RecordIssue('Note out of range');
 			if V < 1 then
 				V := High(NoteText);
 		end;
@@ -142,13 +143,13 @@ begin
 				$D: SetNoteEx($D);	// Note delay for x ticks
 				else
 					Inc(Conversion.Missed.Effects);
-					//Log(TEXT_WARNING + 'Unimplemented command: ' + Chr(C + Ord('A') - 1) + IntToHex(P, 2) );
+					RecordIssue('Unimplemented effect dropped');
 					C := 0;
 					P := 0;
 				end;
 	else
 		Inc(Conversion.Missed.Effects);
-		//Log(TEXT_WARNING + 'Unimplemented command: ' + Chr(C + Ord('A') - 1) + IntToHex(P, 2) );
+		RecordIssue('Unimplemented effect dropped');
 		C := 0;
 		P := 0;
 	end;
@@ -168,6 +169,7 @@ begin
 		begin
 			Log(TEXT_WARNING + 'Discarded note cut command!');
 			Inc(Conversion.Missed.Effects); // !!! does this classify as an effect?
+			RecordIssue('Discarded note cut');
 		end
 		else
 			SetNote($C, $00); // !!! warn if any command was overwritten?

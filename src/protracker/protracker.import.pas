@@ -48,6 +48,13 @@ type
 	end;
 	PExtNote = ^TExtNote;
 
+	// A single information-loss during import, tagged with where it happened
+	// (source pattern/channel/row). Turned into "info" notes after conversion.
+	TConversionIssue = record
+		Msg:				AnsiString;
+		Pattern, Channel, Row: Byte;
+	end;
+
 	TExtPattern = class
 	private
 		EmptyNote: 		TExtNote;
@@ -77,10 +84,16 @@ type
 		ModFile:     TFileStreamEx;
 		SamplesOnly: Boolean;
 		PrevParam:   array[0..255] of Byte;
+		// Current position while ConvertCommand runs, so RecordIssue can tag issues.
+		FConvPattern, FConvChannel, FConvRow: Byte;
 
 		procedure	CountChannels;
+		procedure	EmitConversionNotes;
 	public
 		Conversion:  TConversion;
+		ConversionIssues: TList<TConversionIssue>;
+
+		procedure	RecordIssue(const Msg: AnsiString);
 
 		procedure	LoadFromFile; virtual; abstract;
 		procedure	ReadSample(i: Byte; var ips: TImportedSample); virtual; abstract;
@@ -102,6 +115,7 @@ implementation
 
 uses
 	Math, SysUtils, Types, Classes, MainWindow,
+	ProTracker.Metadata,
 	CWE.Core, CWE.Dialogs, CWE.Widgets.Text, Screen.Config;
 
 { TImportedModule }
@@ -130,6 +144,7 @@ begin
 	end;
 
 	Patterns := TExtPatternList.Create(True);
+	ConversionIssues := TList<TConversionIssue>.Create;
 
 	LoadFromFile;
 end;
@@ -137,8 +152,21 @@ end;
 destructor TImportedModule.Destroy;
 begin
 	Finish;
+	ConversionIssues.Free;
 	Patterns.Free;
 	inherited Destroy;
+end;
+
+procedure TImportedModule.RecordIssue(const Msg: AnsiString);
+var
+	Issue: TConversionIssue;
+begin
+	if not Assigned(ConversionIssues) then Exit;
+	Issue.Msg     := Msg;
+	Issue.Pattern := FConvPattern;
+	Issue.Channel := FConvChannel;
+	Issue.Row     := FConvRow;
+	ConversionIssues.Add(Issue);
 end;
 
 procedure TImportedModule.CountChannels;
@@ -291,16 +319,20 @@ end;
 // Process imported data after showing import options dialog
 procedure TImportedModule.Finish;
 var
+	p, c, r: Integer;
 	Pattern: TExtPattern;
-	c, r: Integer;
 	Note: PExtNote;
 begin
 	// convert note pitches and effects from IT to PT
-	for Pattern in Patterns do
+	for p := 0 to Patterns.Count-1 do
 	begin
+		Pattern := Patterns[p];
+		FConvPattern := p; // source pattern index (see caveat re: >64-row splits)
 		for c := 0 to Pattern.UsedChannels-1 do
 		for r := 0 to Pattern.Rows-1 do
 		begin
+			FConvChannel := c;
+			FConvRow := r;
 			Note := @Pattern.Notes[c, r];
 			ConvertCommand(Note^);
 		end;
@@ -313,6 +345,62 @@ begin
 
 	// convert intermediate format patterns to ProTracker format
 	ProcessConvertedPatterns;
+
+	// turn the recorded conversion losses into "info" notes
+	EmitConversionNotes;
+end;
+
+// Create one "info" note per recorded conversion issue, pointing at the source
+// pattern/channel/row. Skips duplicates so re-importing the same file is
+// idempotent, and respects the metadata entry limit.
+procedure TImportedModule.EmitConversionNotes;
+var
+	i, j: Integer;
+	Issue: TConversionIssue;
+	Ptr: TMetadataPointer;
+	Entries: TList<TMetadataEntry>;
+	Exists: Boolean;
+begin
+	if not Assigned(Module) or not Assigned(Module.Metadata) then Exit;
+	if not Assigned(ConversionIssues) or (ConversionIssues.Count = 0) then Exit;
+
+	for i := 0 to ConversionIssues.Count-1 do
+	begin
+		if Module.Metadata.GetEntryCount >= MAX_METADATA_ENTRIES then Break;
+		Issue := ConversionIssues[i];
+
+		FillChar(Ptr, SizeOf(Ptr), 0);
+		Ptr.PointerType := ptPattern;
+		Ptr.Pattern  := Issue.Pattern;
+		// Clamp to ProTracker limits (the source may have had more channels/rows).
+		if Issue.Channel < AMOUNT_CHANNELS then
+			Ptr.Channel := Issue.Channel
+		else
+			Ptr.Channel := AMOUNT_CHANNELS - 1;
+		if Issue.Row <= 63 then
+			Ptr.RowStart := Issue.Row
+		else
+			Ptr.RowStart := 63;
+
+		// Skip if an identical info note already exists (idempotent reimport).
+		Exists := False;
+		Entries := Module.Metadata.GetEntries;
+		for j := 0 to Entries.Count-1 do
+			if (Entries[j].Status = msInfo) and (Entries[j].Title = Issue.Msg)
+				and (Entries[j].Pointer.PointerType = ptPattern)
+				and (Entries[j].Pointer.Pattern = Issue.Pattern)
+				and (Entries[j].Pointer.Channel = Issue.Channel)
+				and (Entries[j].Pointer.RowStart = Issue.Row) then
+			begin
+				Exists := True;
+				Break;
+			end;
+
+		if not Exists then
+			Module.Metadata.AddEntry(Issue.Msg, '', Ptr, msInfo);
+	end;
+
+	Module.Metadata.SaveToFile;
 end;
 
 procedure TImportedModule.ShowImportDialog;

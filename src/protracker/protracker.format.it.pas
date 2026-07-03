@@ -109,6 +109,7 @@ begin
 		if not InRange(V, 1, 36) then
 		begin
 			Inc(Conversion.Missed.Notes);
+			RecordIssue('Note out of range');
 			if V < 1 then
 				V := High(NoteText);
 		end;
@@ -177,13 +178,13 @@ begin
 				$D: SetNoteEx($D);	// Note delay for x ticks
 			else
 				Inc(Conversion.Missed.Effects);
-				//Log(TEXT_WARNING + 'Unimplemented command: ' + Chr(C + Ord('A') - 1) + IntToHex(P, 2) );
+				RecordIssue('Unimplemented effect dropped');
 				C := 0;
 				P := 0;
 			end;
 	else
 		Inc(Conversion.Missed.Effects);
-		//Log(TEXT_WARNING + 'Unimplemented command: ' + Chr(C + Ord('A') - 1) + IntToHex(P, 2) );
+		RecordIssue('Unimplemented effect dropped');
 		C := 0;
 		P := 0;
 	end;
@@ -192,7 +193,10 @@ begin
 	if Note.Volume > 64 then
 	begin
 		if C <> 0 then
-			Inc(Conversion.Missed.VolEffects)
+		begin
+			Inc(Conversion.Missed.VolEffects);
+			RecordIssue('Volume-column effect lost');
+		end
 		else
 		begin
 			P := Note.Volume and $F;
@@ -218,6 +222,7 @@ begin
 			else
 				Inc(Conversion.Missed.VolEffects);
 				Dec(Conversion.VolEffects);
+				RecordIssue('Volume-column effect lost');
 			end;
 		end;
 	end
@@ -227,7 +232,10 @@ begin
 		if C in VolumeOverridesEffects then // volume fx takes priority over fades
 			SetNote($C, Note.Volume)
 		else
+		begin
 			Inc(Conversion.Missed.Volumes);
+			RecordIssue('Volume lost');
+		end;
 	end;
 
 	// emulate note cut/note off by setting volume to 0
@@ -238,6 +246,7 @@ begin
 		begin
 			Log(TEXT_WARNING + 'Discarded note cut command!');
 			Inc(Conversion.Missed.Effects); // !!! does this classify as an effect?
+			RecordIssue('Discarded note cut');
 		end
 		else
 			SetNote($C, $00); // !!! warn if any command was overwritten?
