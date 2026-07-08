@@ -1310,6 +1310,9 @@ begin
 		AddCmd(Ord(keyBlockHalve),				'Halve size');
 		//AddCmd(Ord(keyBlockSlideWipeEffect),	'Slide effect values');
 		AddCmd(Ord(keyBlockSlideEffect),		'Slide effect values');
+		AddCmd(Ord(keyBlockSlideEffectKeepVol),	'Slide effect (keep volumes)');
+		AddCmd(Ord(keyBlockSlideVolume),		'Slide volume values');
+		AddCmd(Ord(keyBlockSlideVolumeKeepFx),	'Slide volume (keep effects)');
 		AddCmd(Ord(keyBlockWipeEffects),		'Wipe effects');
 		AddCmd(Ord(keyBlockSetSample),			'Replace sample');
 		AddCmd(Ord(keyTransposeSemitoneUp),		'Transpose semitone up');

@@ -68,7 +68,9 @@ type
 		keyBlockPasteMasked,		keyBlockOverwriteMasked,	keyBlockMixMasked,
 		keyBlockDouble,				keyBlockHalve,
 		keyBlockSetSample,			//keyBlockSlideWipeEffect,
-		keyBlockSlideEffect,		keyBlockWipeEffects,
+		keyBlockSlideEffect,		keyBlockSlideEffectKeepVol,
+		keyBlockWipeEffects,
+		keyBlockSlideVolume,		keyBlockSlideVolumeKeepFx,
 		keyBlockSwap,				keyToggleEditMask,
 		keyTransposeSemitoneUp,		keyTransposeSemitoneDown,
 		keyTransposeOctaveUp,		keyTransposeOctaveDown,
@@ -103,6 +105,7 @@ type
 		uaBlockSetSample, // Block sample set
 		uaBlockWipeEffects, // Block effects wiped
 		uaBlockSlideEffect, // Block slide effect
+		uaBlockSlideVolume, // Block slide volume
 		uaReplaceSample, // Sample replaced in pattern
 		uaInsertPattern, // Pattern inserted
 		uaDeletePattern, // Pattern deleted
@@ -217,7 +220,8 @@ type
 		procedure 	BlockSwap;
 		procedure 	BlockDoubleOrHalve(DoubleIt: Boolean);
 		procedure	BlockWipeEffects;
-		procedure	BlockSlideEffect;
+		procedure	BlockSlideEffect(KeepVolumeRows: Boolean = False);
+		procedure	BlockSlideVolume(KeepEffectRows: Boolean = False);
 		procedure 	BlockSetSample;
 
 		procedure 	ReplaceSample(iFrom, iTo: Byte);
@@ -391,7 +395,10 @@ begin
 		Bind(keyBlockSwap,				'Block.Swap',				'Alt+Y');
 		//Bind(keyBlockSlideWipeEffect,	'Block.SlideOrWipeEffects',	'Alt+X');
 		Bind(keyBlockSlideEffect,		'Block.SlideEffect',		'Alt+X');
-		Bind(keyBlockWipeEffects,		'Block.WipeEffects',		'Alt+Shift+X');
+		Bind(keyBlockSlideEffectKeepVol,'Block.SlideEffectKeepVol',	'Alt+Shift+X');
+		Bind(keyBlockWipeEffects,		'Block.WipeEffects',		'Alt+W');
+		Bind(keyBlockSlideVolume,		'Block.SlideVolume',		'Alt+K');
+		Bind(keyBlockSlideVolumeKeepFx,	'Block.SlideVolumeKeepFx',	'Alt+Shift+K');
 		Bind(keyTransposeSemitoneUp,	'Transpose.Semitone.Up',	'Alt+Q');
 		Bind(keyTransposeSemitoneDown,	'Transpose.Semitone.Down',	'Alt+A');
 		Bind(keyTransposeOctaveUp,		'Transpose.Octave.Up', 	 	'Shift+Alt+Q');
@@ -1404,29 +1411,118 @@ begin
 	Module.SetModified;
 end;
 
-procedure TPatternEditor.BlockSlideEffect;
+// Interpolate the effect column across the selection, from the top row's value
+// to the bottom row's value. The top row's effect command is kept and only the
+// parameter is slid. Overwrites both effect- and volume-column content on every
+// row; when KeepVolumeRows is set, rows holding a volume (Cxx) are left intact.
+procedure TPatternEditor.BlockSlideEffect(KeepVolumeRows: Boolean = False);
 var
-	p, x, y, h, t, FX1, FX2: Integer;
+	p, x, y, h, t, Cmd, P1, P2: Integer;
 	step: Single;
+	N: PNote;
 begin
 	p := CurrentPattern;
 	t := Selection.Top;
 	h := Selection.Bottom - t;
 	if h <= 0 then Exit;
 
-	BeginPatternUndo('Slide effect');
+	if KeepVolumeRows then
+		BeginPatternUndo('Slide effect (keep volumes)')
+	else
+		BeginPatternUndo('Slide effect');
+
 	for x := Selection.Left to Selection.Right do
 	begin
-		FX1 := Module.Notes[p, x, t].Parameter;
-		FX2 := Module.Notes[p, x, Selection.Bottom].Parameter - FX1;
-		if FX2 = 0 then
+		// Keep the initial row's command; if it holds a volume (Cxx) rather than
+		// an effect, fall back to the final row's command so an effect slide
+		// never emits a volume command.
+		Cmd := Module.Notes[p, x, t].Command;
+		if Cmd = $C then Cmd := Module.Notes[p, x, Selection.Bottom].Command;
+		if Cmd = $C then Cmd := 0;
+		P1  := Module.Notes[p, x, t].Parameter;
+		P2  := Module.Notes[p, x, Selection.Bottom].Parameter;
+		if P2 = P1 then
 			step := 0
 		else
-			step := FX2 / h;
+			step := (P2 - P1) / h;
 		for y := 0 to h do
-			Module.Notes[p, x, y+t].Parameter := Round(FX1 + (step * y));
+		begin
+			N := @Module.Notes[p, x, y+t];
+			if KeepVolumeRows and (N^.Command = $C) then
+				Continue;			// leave volume-column rows untouched
+			N^.Command   := Cmd;
+			N^.Parameter := Round(P1 + (step * y));
+		end;
 	end;
 	EndPatternUndo(uaBlockSlideEffect);
+
+	Module.SetModified;
+end;
+
+// Interpolate the volume column (Cxx) across the selection, from the top row's
+// value to the bottom row's value. Endpoints without a volume take the sound
+// default (the row sample's default volume, or full volume when no sample).
+// Overwrites both columns on every row; when KeepEffectRows is set, rows with a
+// nonzero effect are left intact. Volume values are always clamped to 0..64.
+procedure TPatternEditor.BlockSlideVolume(KeepEffectRows: Boolean = False);
+var
+	p, x, y, h, t, V1, V2, v: Integer;
+	step: Single;
+	N: PNote;
+
+	// Volume at a row: the Cxx parameter if present, else the sound default.
+	function RowVolume(row: Integer): Integer;
+	var
+		s: Integer;
+	begin
+		if Module.Notes[p, x, row].Command = $C then
+			Result := Module.Notes[p, x, row].Parameter
+		else
+		begin
+			s := Module.Notes[p, x, row].Sample;
+			if (s >= 1) and (s <= Module.Samples.Count) then
+				Result := Module.Samples[s-1].Volume
+			else
+				Result := 64;
+		end;
+		if Result > 64 then Result := 64
+		else if Result < 0 then Result := 0;
+	end;
+
+begin
+	p := CurrentPattern;
+	t := Selection.Top;
+	h := Selection.Bottom - t;
+	if h <= 0 then Exit;
+
+	if KeepEffectRows then
+		BeginPatternUndo('Slide volume (keep effects)')
+	else
+		BeginPatternUndo('Slide volume');
+
+	for x := Selection.Left to Selection.Right do
+	begin
+		V1 := RowVolume(t);
+		V2 := RowVolume(Selection.Bottom);
+		if V2 = V1 then
+			step := 0
+		else
+			step := (V2 - V1) / h;
+		for y := 0 to h do
+		begin
+			N := @Module.Notes[p, x, y+t];
+			// Leave rows carrying a nonzero effect untouched when asked to.
+			if KeepEffectRows and (N^.Command <> $C)
+				and ((N^.Command <> 0) or (N^.Parameter <> 0)) then
+					Continue;
+			v := Round(V1 + (step * y));
+			if v > 64 then v := 64
+			else if v < 0 then v := 0;
+			N^.Command   := $C;		// Cxx = set volume
+			N^.Parameter := v;
+		end;
+	end;
+	EndPatternUndo(uaBlockSlideVolume);
 
 	Module.SetModified;
 end;
@@ -2282,7 +2378,14 @@ begin
 		begin
 			Result := True;
 			if AllowEditing then
-				BlockSlideEffect;
+				BlockSlideEffect(False);
+		end;
+
+		keyBlockSlideEffectKeepVol:
+		begin
+			Result := True;
+			if AllowEditing then
+				BlockSlideEffect(True);
 		end;
 
 		keyBlockWipeEffects:
@@ -2290,6 +2393,20 @@ begin
 			Result := True;
 			if AllowEditing then
 				BlockWipeEffects;
+		end;
+
+		keyBlockSlideVolume:
+		begin
+			Result := True;
+			if AllowEditing then
+				BlockSlideVolume(False);
+		end;
+
+		keyBlockSlideVolumeKeepFx:
+		begin
+			Result := True;
+			if AllowEditing then
+				BlockSlideVolume(True);
 		end;
 
 		// Transpose
