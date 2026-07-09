@@ -15,6 +15,7 @@ uses
 type
 	GlobalKeyNames = (
 		keyNONE,				keyMainMenu,
+		keyCommandPalette,
 		keyProgramQuit,			keyProgramFullscreen,
 		keyScreenHelp,			keyScreenPatternEditor,
 		keyScreenSamples,		keyScreenAbout,
@@ -978,6 +979,9 @@ begin
 		keyMainMenu:
 			ContextMenu.Show;
 
+		keyCommandPalette:
+			ContextMenu.ShowPalette;
+
 		// exit program
 		keyProgramQuit:
 			Close;
@@ -1896,6 +1900,7 @@ begin
 		GlobalKeys := SetContext('Global');
 
 		Bind(Variant(Integer(keyMainMenu)),				'Program.Menu',				'Escape');
+		Bind(Variant(Integer(keyCommandPalette)),		'Program.CommandPalette',	'Ctrl+E');
 		Bind(Variant(Integer(keyProgramQuit)), 			'Program.Quit', 			'Ctrl+Q');
 		Bind(Variant(Integer(keyProgramFullscreen)), 		'Program.Fullscreen', 		'Alt+Return');
 		Bind(Variant(Integer(keyScreenHelp)), 			'Screen.Help', 				'F1');
