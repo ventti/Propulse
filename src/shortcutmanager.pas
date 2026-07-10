@@ -193,11 +193,17 @@ var
 begin
 	//writeln('AddKey ', Self.Section, '::', Binding.Name, ' = ', ShortCutToText(Binding.Shortcut));
 
+	// Each physical shortcut maps to exactly one command within a section: drop
+	// any existing binding that uses the same Key+Shift (regardless of name) so
+	// the one being added wins. This keeps re-registration idempotent and, since
+	// the config is loaded after the code defaults, lets a later binding reclaim
+	// a shortcut that a stale/duplicate config entry would otherwise shadow
+	// (Find returns the first match). Bindings for other keys are untouched, so a
+	// command may still own several distinct shortcuts.
 	for i := Keys.Count-1 downto 0 do
 	begin
 		KB := Keys[i];
-		if	(KB.Name = Binding.Name) and
-			(KB.Shortcut.Key   = Binding.Shortcut.Key)   and
+		if	(KB.Shortcut.Key   = Binding.Shortcut.Key) and
 			(KB.Shortcut.Shift = Binding.Shortcut.Shift) then
 				Keys.Delete(i);
 	end;

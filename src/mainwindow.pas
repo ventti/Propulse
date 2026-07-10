@@ -1914,7 +1914,7 @@ begin
 		Bind(Variant(Integer(keyScreenLog)), 				'Screen.Log', 				['F4', 'Ctrl+F11']);
 		Bind(Variant(Integer(keyMetadataNotes)),			'Metadata.Notes',			['Shift+F4']);
 		Bind(Variant(Integer(keyMetadataNext)),			'Metadata.Next',			['Ctrl+Shift+N']);
-		Bind(Variant(Integer(keyMetadataPrev)),			'Metadata.Previous',		['Ctrl+Shift+P']);
+		Bind(Variant(Integer(keyMetadataPrev)),			'Metadata.Previous',		['Ctrl+Shift+B']);
 		Bind(Variant(Integer(keyScreenAbout)), 			'Screen.About', 			'Ctrl+F1');
 		Bind(Variant(Integer(keyScreenConfig)), 			'Screen.Config', 			'F12');
 		Bind(Variant(Integer(keyPlaybackSong)), 			'Playback.Song', 			'F5');
@@ -1945,8 +1945,11 @@ begin
 		Bind(Variant(Integer(filekeyModMerge)),			'File.MergeModule',			'Shift+Return');
 	end;
 
-	// Load any user-defined shortcuts
-	Shortcuts.Load(GetDataFile(FILENAME_KEYBOARD));
+	// NOTE: user-defined shortcuts are loaded later, after all screens have
+	// registered their default bindings (see below). Loading here would leave
+	// per-screen defaults (e.g. the Editor section) unregistered, so the config's
+	// by-name override couldn't apply and stale entries would shadow newer
+	// bindings that share a shortcut.
 
 
 	// Create fake text mode console and init SDL
@@ -2098,6 +2101,11 @@ begin
 
 	// Init context menu
 	ContextMenu := TCWEMainMenu.Create;
+
+	// Load user-defined shortcuts now that every screen has registered its
+	// default bindings, so the config's by-name override applies cleanly and
+	// no stale binding can shadow a newer one sharing the same shortcut.
+	Shortcuts.Load(GetDataFile(FILENAME_KEYBOARD));
 
 	Log('');
 
