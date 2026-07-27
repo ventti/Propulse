@@ -383,9 +383,18 @@ begin
 		for K in slKeys do
 		begin
 			Binding := Sect.FindKey(K);
+
+			// A config line only overrides a binding that a current default
+			// already registered under this name. If nothing owns the name it is
+			// a stale/unknown entry (e.g. an old "Tab=Tab" that newer builds no
+			// longer define); skip it so it can't shadow a live binding that
+			// shares its key, and so a leftover id from a previous line isn't
+			// bound by mistake.
+			if Binding = nil then Continue;
+
+			id := Binding.ID;
 			while Binding <> nil do
 			begin
-				id := Binding.ID;
 				i := Sect.Keys.IndexOf(Binding);
 				if i >= 0 then
 					Sect.Keys.Delete(i);
