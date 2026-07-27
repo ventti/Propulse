@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0 - 2026-07-27
+
+- fix(keys): ignore stale config bindings whose name no longer matches a default so they can't shadow live shortcuts (fixes Tab in sample list) (`7c07b29`)
+
 ## 0.11.0-rc.1 - 2026-07-27
 
 - build: add mise task runner with local build task and remote release catalog (`b0c4a24`)
