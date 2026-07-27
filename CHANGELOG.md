@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.11.0-rc.1 - 2026-07-27
+
+- build: add mise task runner with local build task and remote release catalog (`b0c4a24`)
+- chore(release): remove legacy shell release scripts superseded by mise tasks (`3b28ef5`)
+- fix(keys,editor): restore Tab in sample list and keep order list centered on playhead past 32 patterns (`24d123c`)
+- fix(keys): resolve shortcut conflicts so one command owns each shortcut; load user config after defaults; rebind Metadata.Previous to Ctrl+Shift+B (`ba72a77`)
+- feat(ui): add fuzzy command palette (Ctrl+E) as a filterable variant of the main menu (`17e08eb`)
+- feat(editor): interpolate volume (Alt-K) and effect (Alt-X) values with keep-other-column variants (Alt-Shift-K/X); rebind wipe effects to Alt-W (`9625391`)
+- fix(editor): restore channel separator glyph (168) instead of superscript-2 (`3bb654d`)
+- feat(editor): click a channel title to mute/unmute it; ctrl/right-click solos it (`505ee13`)
+- fix(editor): default the volume column edit-mask (,) to off (`5db7bc6`)
+- feat(release): add --ignore-missing and --verbose to upload-release-dropbox.sh; quiet by default (`1ec309e`)
+- fix(release): validate release artifacts before uploading to Dropbox to avoid partial uploads (`a52d093`)
+- chore(release): add -h/--help to the release helper scripts (`7530a70`)
+- refactor(release): split push/gh release into upload-release-github.sh, rename uploader to upload-release-dropbox.sh (`e4f848e`)
+- docs: document note system rationale and status set (`0652b8d`)
+- feat(import): create info notes for each S3M/IT conversion issue (`178f705`)
+- feat(notes): editable ticket-style notes with statuses, filter/sort, free-form body and undo/redo (`1186eee`)
+- chore: update gitignore (`999b755`)
+- docs: add changelog, contributing guide, docs README and refresh main README (`94edb49`)
+- fix: honor comma edit-mask for volume and effect columns on note entry (`736b883`)
+- fix: make github release idempotent, non-interactive, with empty notes (`ffa9402`)
+
 This is the changelog for the **Extended** fork of Propulse Tracker. It collects
 the work done on top of the original tool, grouped by area rather than by release.
 
