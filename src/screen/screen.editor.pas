@@ -1399,7 +1399,7 @@ begin
 			Cursor.X := 1 - Cursor.X;
 
 		ctrlkeyRETURN,
-		ctrlkeyTAB:
+		ctrlkeyNextCtrl:  // Tab: jump focus to the pattern editor
 		begin
 			if Sc = ctrlkeyRETURN then
 				CurrentPattern := Module.OrderList[Cursor.Y];
@@ -1580,15 +1580,12 @@ begin
 //	inherited;
 	DrawBorder(Types.Rect(Rect.Left + 4, Rect.Top, Rect.Right, Rect.Bottom), ColorBack);
 
+	// Keep the playing order centered in the visible window, clamped to the
+	// 0..127 order array. (The old code reset Offset to 0 on backward motion,
+	// which dropped the playhead off-screen once the list was longer than the
+	// window - i.e. more than Height+1 orders.)
 	if (Module.PlayMode = PLAY_SONG) and (Module.Info.OrderCount > Height) then
-	begin
-		y := Module.PlayPos.Order;
-		if y > (Offset + Height div 2) then
-			Offset := Min(y - (Height div 2), 127-31)
-		else
-		if y < Offset then
-			Offset := 0;
-	end;
+		Offset := Max(0, Min(Module.PlayPos.Order - (Height div 2), 127 - Height));
 
 	for y := 0 to Height do
 	begin

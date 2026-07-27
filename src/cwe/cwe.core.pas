@@ -328,7 +328,6 @@ begin
 		Bind(ctrlkeyLEFT,			'',						'Left');
 		Bind(ctrlkeyRIGHT,			'',						'Right');
 		Bind(ctrlkeyRETURN,			'',						'Return');
-		Bind(ctrlkeyTAB,			'',						'Tab');
 		Bind(ctrlkeySPACE,			'',						'Space');
 		Bind(ctrlkeyINSERT,			'',						'Insert');
 		Bind(ctrlkeyDELETE,			'',						'Delete');
