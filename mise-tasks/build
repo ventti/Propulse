@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#MISE description="Clean-build and package every release target into release/"
+#MISE dir="{{config_root}}"
+#
+# Wipes build/, release/ and the per-platform FPC unit dirs, validates the help
+# text, runs every CMake workflow preset (configure + build + package), and
+# writes a git-describe version into release/. Takes no arguments.
+set -euo pipefail
+
+clean_fpc_units() {
+    # CMake presets reuse a per-platform unit dir (src/lib/<cpu-os>) for BOTH
+    # release and debug builds. Reusing .ppu/.o built with different compiler
+    # flags across configurations triggers FPC internal errors, so wipe them.
+    rm -rf src/lib/aarch64-darwin src/lib/x86_64-darwin \
+           src/lib/x86_64-linux src/lib/x86_64-win64
+}
+
+# Validate the help text first, before wiping anything, so a stale data/help.txt
+# fails fast rather than after a clean build.
+python3 ./tools/scripts/validate_help.py
+
+# Start from clean build and release directories.
+rm -rf build release
+
+# Build every workflow preset (configure + build + package). Extract the preset
+# names with sed rather than grep+sed: BSD grep drops some of the lines from
+# `cmake --list-presets` output, which would silently skip the packaging presets.
+PRESETS=$(cmake --list-presets=workflow 2>/dev/null | sed -n 's/^[[:space:]]*"\([^"]*\)".*/\1/p')
+[[ -n "$PRESETS" ]] || { echo "error: no CMake workflow presets found" >&2; exit 1; }
+
+# Wipe the shared unit cache before each preset, since release/debug of the same
+# platform share src/lib/<cpu-os> and mixing differently-compiled .ppu causes
+# FPC internal errors.
+while IFS= read -r preset; do
+    [[ -n "$preset" ]] || continue
+    clean_fpc_units
+    cmake --workflow --preset "$preset"
+done <<< "$PRESETS"
+
+# Write the git describe version next to the packaged .zip files.
+mkdir -p release
+VERSION=$(git describe --always --tags --dirty 2>/dev/null || echo unknown)
+printf '%s\n' "$VERSION" > release/version.txt
+
+# Convenience symlink to the macOS ARM64 binary.
+ln -sf build/macos-arm64-release/Propulse-macos-arm64 ./Propulse

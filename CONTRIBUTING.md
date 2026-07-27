@@ -69,13 +69,15 @@ cmake --list-presets=workflow  # only the targets the pipeline builds
 
 ### Building all release targets
 
-`build-all-releases.sh` cleans the build/release directories, validates
-`data/help.txt`, runs every workflow preset (currently macOS ARM64 and Windows
-x64), and writes a `git describe` version into `release/`. Building the Windows
-target from macOS requires the Windows cross-compiler/RTL units to be installed.
+The `build` [mise](https://mise.jdx.dev) task (`mise-tasks/build`) cleans the
+build/release directories, validates `data/help.txt`, runs every workflow preset
+(currently macOS ARM64 and Windows x64), and writes a `git describe` version
+into `release/`. Building the Windows target from macOS requires the Windows
+cross-compiler/RTL units to be installed. It is also the build step of the
+release flow (`RELEASE_BUILD_COMMAND` in `mise.toml`).
 
 ```bash
-./build-all-releases.sh
+mise run build
 ```
 
 The build version is derived from `git describe --always --tags --dirty`, so
@@ -103,7 +105,7 @@ tag before building if you want a clean version string baked into the binaries.
 ### Documentation & help
 
 - If you change a mouse or keyboard shortcut, update `data/help.txt`
-  accordingly (`build-all-releases.sh` validates the help text).
+  accordingly (`mise run build` validates the help text).
 - Keep documentation consistent with the code; document intent and assumptions,
   not obvious code.
 
@@ -138,16 +140,22 @@ See [COMMIT_CONVENTIONS.md](COMMIT_CONVENTIONS.md) for more examples.
 
 ## Releasing
 
-`release.sh` ties the release process together (build, changelog, upload, and
-GitHub release creation):
+Releases are driven by the `release` [mise](https://mise.jdx.dev) tasks (the
+shared [release-scripts](https://github.com/superteppo/release-scripts) catalog,
+wired up in `mise.toml`). The main task runs the checks and build, updates
+`CHANGELOG.md`, creates the release commit and tag, pushes them, and publishes
+the GitHub release. Versions come from git tags (unprefixed, e.g. `0.10.3`);
+options precede the bump keyword:
 
 ```bash
-./release.sh                      # pre-release, no new tag
-./release.sh --pre minor          # bump version, tag X.Y.Z-pre, no GitHub release
-./release.sh minor                # bump version, tag X.Y.Z, create GitHub release
-./release.sh --promote            # promote the latest X.Y.Z-pre to a full release
+mise run release:doctor           # check prerequisites and GitHub access
+mise run release --dry-run minor  # preview the release plan, change nothing
+mise run release minor            # bump, tag X.Y.Z, build, publish GitHub release
+mise run release --pre minor      # cut a prerelease, tag X.Y.Z-rc.1
+mise run release --promote        # promote the latest rc to a stable release
+mise run release:dropbox          # upload the built artifacts to Dropbox
 ```
 
-The working tree must be clean before tagging a release. Uploading to Dropbox
-requires a configured `.dropboxuploader`, and creating a GitHub release requires
-the `gh` CLI.
+The working tree must be clean and releases are only allowed from `main`.
+Publishing a GitHub release requires the `gh` CLI; `release:dropbox` is a
+separate step and requires a configured `.dropboxuploader` in the project root.

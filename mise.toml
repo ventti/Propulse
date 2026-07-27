@@ -1,0 +1,27 @@
+[task_config]
+# Setting includes overrides mise's default task dirs, so list the local
+# mise-tasks/ dir explicitly alongside the remote release-scripts catalog.
+includes = [
+  "mise-tasks",
+  "git::https://github.com/superteppo/release-scripts.git//mise-tasks?ref=v1.6.0",
+]
+
+[env]
+# Tag-only versioning: the release version is derived from git tags
+# (`git describe --always --tags --dirty`), so there is no package file to
+# read or write. Per the toolkit's tag-only mode, RELEASE_GET_VERSION and
+# RELEASE_SET_VERSION are intentionally omitted.
+
+# Existing tags are unprefixed (e.g. 0.10.3, 0.10.3-pre), so clear the
+# toolkit's default "v" prefix to keep the numbering continuous.
+RELEASE_TAG_PREFIX = ""
+
+# Build command and release artifacts. The `build` task (mise-tasks/build)
+# validates the help text itself before building, so no separate
+# RELEASE_CHECK_COMMAND is needed.
+RELEASE_BUILD_COMMAND = "mise run build"
+RELEASE_ARTIFACTS = "release/Propulse-*.zip"
+
+# Dropbox destination for `release:dropbox`, matching the old upload script's
+# layout. Requires a configured .dropboxuploader in the project root.
+RELEASE_DROPBOX_PATH = "Propulse-EXT/releases"
